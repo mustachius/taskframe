@@ -72,69 +72,11 @@ tokens (add e list):
 `)
 }
 
-// parseTokens interprets taskwarrior-style arguments. Non-token words are
-// joined and returned as free text.
-func parseTokens(args []string, now time.Time) (t task.Task, filter task.Filter, text string, err error) {
-	var words []string
-	for _, a := range args {
-		switch {
-		case strings.HasPrefix(a, "+") && len(a) > 1:
-			t.Tags = append(t.Tags, a[1:])
-			filter.Tags = append(filter.Tags, a[1:])
-		case strings.HasPrefix(a, "pro:"), strings.HasPrefix(a, "project:"):
-			v := a[strings.Index(a, ":")+1:]
-			t.Project = v
-			filter.Project = v
-		case strings.HasPrefix(a, "due:"):
-			d, perr := task.ParseDate(a[4:], now)
-			if perr != nil {
-				err = perr
-				return
-			}
-			t.Due = &d
-			filter.DueBefore = &d
-		case strings.HasPrefix(a, "prio:"), strings.HasPrefix(a, "priority:"):
-			v := strings.ToUpper(a[strings.Index(a, ":")+1:])
-			if v != "H" && v != "M" && v != "L" && v != "" {
-				err = fmt.Errorf("prioridade inválida: %s (use H, M ou L)", v)
-				return
-			}
-			t.Priority = task.Priority(v)
-		case strings.HasPrefix(a, "wait:"):
-			d, perr := task.ParseDate(a[5:], now)
-			if perr != nil {
-				err = perr
-				return
-			}
-			t.Wait = &d
-		case strings.HasPrefix(a, "recur:"):
-			if _, rerr := task.NextRecurrence(a[6:], now); rerr != nil {
-				err = rerr
-				return
-			}
-			t.Recur = a[6:]
-		case strings.HasPrefix(a, "sub:"):
-			id, perr := strconv.ParseInt(a[4:], 10, 64)
-			if perr != nil {
-				err = fmt.Errorf("sub: espera um id numérico")
-				return
-			}
-			t.ParentID = id
-		case a == "all":
-			filter.IncludeAll = true
-		default:
-			words = append(words, a)
-		}
-	}
-	text = strings.Join(words, " ")
-	return
-}
-
 func cmdAdd(s *store.Store, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("uso: taskframe add <título> [pro:x +tag due:x prio:H]")
 	}
-	t, _, title, err := parseTokens(args, time.Now())
+	t, _, title, err := task.ParseTokens(args, time.Now())
 	if err != nil {
 		return err
 	}
@@ -150,7 +92,7 @@ func cmdAdd(s *store.Store, args []string) error {
 }
 
 func cmdList(s *store.Store, args []string) error {
-	_, filter, text, err := parseTokens(args, time.Now())
+	_, filter, text, err := task.ParseTokens(args, time.Now())
 	if err != nil {
 		return err
 	}

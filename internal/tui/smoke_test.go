@@ -323,13 +323,13 @@ func TestMoveCycleRejected(t *testing.T) {
 			child = tk
 		}
 	}
-	if err := a.checkMoveCycle(parent.ID, child.ID); err == nil {
+	if err := a.store.CheckMoveCycle(parent.ID, child.ID); err == nil {
 		t.Fatal("moving a task under its own child must be rejected")
 	}
-	if err := a.checkMoveCycle(child.ID, parent.ID); err != nil {
+	if err := a.store.CheckMoveCycle(child.ID, parent.ID); err != nil {
 		t.Fatalf("valid move rejected: %v", err)
 	}
-	if err := a.checkMoveCycle(parent.ID, 9999); err == nil {
+	if err := a.store.CheckMoveCycle(parent.ID, 9999); err == nil {
 		t.Fatal("nonexistent parent must be rejected")
 	}
 }

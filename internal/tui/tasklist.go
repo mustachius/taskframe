@@ -202,11 +202,3 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 	}
 	return headStyle.Render(head) + bodyStyle.Render(body)
 }
-
-func padRowPlain(s string, w int) string {
-	n := w - len([]rune(s))
-	if n > 0 {
-		s += strings.Repeat(" ", n)
-	}
-	return s
-}

@@ -6,9 +6,11 @@ import (
 	"os"
 
 	"github.com/jvsaga/taskframe/internal/cli"
+	"github.com/jvsaga/taskframe/internal/repl"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 	"github.com/jvsaga/taskframe/internal/tui"
+	"github.com/jvsaga/taskframe/internal/ui"
 )
 
 func main() {
@@ -18,7 +20,7 @@ func main() {
 	theme := fs.String("theme", "", "tema: dark, borland, green, amber (default: último usado)")
 	fs.Parse(os.Args[1:])
 
-	if *theme != "" && tui.NormalizeTheme(*theme) != *theme {
+	if *theme != "" && ui.NormalizeTheme(*theme) != *theme {
 		fatal(fmt.Errorf("tema inválido: %q (opções: dark, borland, green, amber)", *theme))
 	}
 
@@ -36,21 +38,38 @@ func main() {
 	}
 	defer s.Close()
 
+	opts := resolveOptions(s, *theme, *ascii)
+
 	args := fs.Args()
-	if len(args) == 0 {
-		if err := tui.Run(s, resolveOptions(s, *theme, *ascii)); err != nil {
+	switch {
+	case len(args) == 0:
+		// new default: inline REPL, Claude-Code style
+		if err := repl.Run(s, repl.Options(opts)); err != nil {
 			fatal(err)
 		}
-		return
+	case args[0] == "classic":
+		// the original Norton Commander full-screen TUI
+		if err := tui.Run(s, tui.Options(opts)); err != nil {
+			fatal(err)
+		}
+	default:
+		if err := cli.Run(s, args); err != nil {
+			fatal(err)
+		}
 	}
-	if err := cli.Run(s, args); err != nil {
-		fatal(err)
-	}
+}
+
+// commonOptions holds the shared startup settings before conversion to each
+// UI package's own Options type.
+type commonOptions struct {
+	ThemeName string
+	ASCII     bool
+	SortMode  task.SortMode
 }
 
 // resolveOptions applies the precedence: --theme flag > TASKFRAME_THEME env
 // > settings table > default. Invalid env/setting values fall back silently.
-func resolveOptions(s *store.Store, themeFlag string, ascii bool) tui.Options {
+func resolveOptions(s *store.Store, themeFlag string, ascii bool) commonOptions {
 	name := themeFlag
 	if name == "" {
 		name = os.Getenv("TASKFRAME_THEME")
@@ -59,8 +78,8 @@ func resolveOptions(s *store.Store, themeFlag string, ascii bool) tui.Options {
 		name, _ = s.GetSetting("theme")
 	}
 	sortMode, _ := s.GetSetting("sort")
-	return tui.Options{
-		ThemeName: tui.NormalizeTheme(name),
+	return commonOptions{
+		ThemeName: ui.NormalizeTheme(name),
 		ASCII:     ascii,
 		SortMode:  task.NormalizeSortMode(sortMode),
 	}
