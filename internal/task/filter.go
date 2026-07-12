@@ -11,4 +11,5 @@ type Filter struct {
 	DueBefore   *time.Time
 	Text        string // substring match on title and notes
 	HideWaiting bool   // hide tasks with wait date in the future
+	WaitingOnly bool   // only tasks with wait date in the future (overrides HideWaiting)
 }

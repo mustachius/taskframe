@@ -57,6 +57,8 @@ func key(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyDown}
 	case "f2":
 		return tea.KeyMsg{Type: tea.KeyF2}
+	case "ctrl+u":
+		return tea.KeyMsg{Type: tea.KeyCtrlU}
 	default:
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 	}
@@ -91,7 +93,7 @@ func newTestApp(t *testing.T) (*App, *store.Store) {
 	if err := s.AddTask(sub); err != nil {
 		t.Fatal(err)
 	}
-	return newApp(s, false), s
+	return newApp(s, Options{}), s
 }
 
 func TestMainFrameLayout(t *testing.T) {
@@ -177,6 +179,178 @@ func TestNavigateAndComplete(t *testing.T) {
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "Tarefas: casa") {
 		t.Errorf("expected list filtered by project casa, frame:\n%s", frame)
+	}
+}
+
+func TestThemeCycleAndPersist(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	if a.th.Name != "dark" {
+		t.Fatalf("default theme should be dark, got %s", a.th.Name)
+	}
+	m = drive(t, m, key("t"))
+	if a.th.Name != "borland" {
+		t.Fatalf("expected borland after cycle, got %s", a.th.Name)
+	}
+	if v, _ := s.GetSetting("theme"); v != "borland" {
+		t.Fatalf("theme not persisted, setting=%q", v)
+	}
+	// settings must never enter the undo stream: the next undo target is
+	// still a task operation (the seed creates), never the theme change
+	if desc, err := s.Undo(); err != nil || !strings.Contains(desc, "task") {
+		t.Fatalf("undo should target a task op, got %q (%v)", desc, err)
+	}
+	_ = m
+}
+
+func TestSortTogglePersists(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	m = drive(t, m, key("o"))
+	if a.sortMode != task.SortDue {
+		t.Fatalf("expected due after toggle, got %s", a.sortMode)
+	}
+	if v, _ := s.GetSetting("sort"); v != "due" {
+		t.Fatalf("sort not persisted, setting=%q", v)
+	}
+	m = drive(t, m, key("o"))
+	m = drive(t, m, key("o"))
+	if a.sortMode != task.SortUrgency {
+		t.Fatalf("expected cycle back to urgency, got %s", a.sortMode)
+	}
+	_ = m
+}
+
+// driveSidebarTo moves the sidebar cursor down until the list title matches.
+func driveSidebarTo(t *testing.T, m tea.Model, a *App, title string) tea.Model {
+	t.Helper()
+	if a.focus != focusSidebar {
+		m = drive(t, m, key("tab"))
+	}
+	for i := 0; i < 30 && a.sidebar.Title() != title; i++ {
+		m = drive(t, m, key("down"))
+	}
+	if a.sidebar.Title() != title {
+		t.Fatalf("could not reach sidebar item %q", title)
+	}
+	return m
+}
+
+func TestVirtualFilters(t *testing.T) {
+	a, s := newTestApp(t)
+	overdue := time.Now().Add(-24 * time.Hour)
+	wait := time.Now().Add(5 * 24 * time.Hour)
+	s.AddTask(&task.Task{Title: "conta atrasada", Due: &overdue})
+	s.AddTask(&task.Task{Title: "viagem futura", Wait: &wait})
+
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	frame := stripANSI(m.View())
+	if strings.Contains(frame, "viagem futura") {
+		t.Error("waiting task should be hidden in default view")
+	}
+
+	m = driveSidebarTo(t, m, a, "Atrasadas")
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "conta atrasada") {
+		t.Errorf("overdue filter should show the overdue task, frame:\n%s", frame)
+	}
+	if strings.Contains(frame, "Comprar leite") {
+		t.Error("overdue filter should not show a task due in 2 days")
+	}
+
+	m = driveSidebarTo(t, m, a, "Aguardando")
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "viagem futura") {
+		t.Errorf("waiting filter should show the waiting task, frame:\n%s", frame)
+	}
+
+	m = driveSidebarTo(t, m, a, "Tarefas: +urgente")
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "Comprar leite") {
+		t.Error("tag filter should show the tagged task")
+	}
+	if strings.Contains(frame, "Regar plantas") {
+		t.Error("tag filter should hide untagged tasks")
+	}
+}
+
+func TestMoveDialog(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	moved := a.list.CursorTask()
+	m = drive(t, m, key("m"))
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "Mover tarefa") {
+		t.Fatalf("expected move modal, frame:\n%s", frame)
+	}
+	m = drive(t, m, key("ctrl+u")) // clear prefilled project
+	m = typeText(t, m, "arquivado")
+	m = drive(t, m, key("enter"))
+
+	got, _ := s.GetTask(moved.ID)
+	if got.Project != "arquivado" {
+		t.Fatalf("expected project arquivado, got %q", got.Project)
+	}
+	// undo reverts the move
+	m = drive(t, m, key("u"))
+	got, _ = s.GetTask(moved.ID)
+	if got.Project != moved.Project {
+		t.Fatalf("undo should restore project %q, got %q", moved.Project, got.Project)
+	}
+	_ = m
+}
+
+func TestMoveCycleRejected(t *testing.T) {
+	a, s := newTestApp(t)
+	tasks, _ := s.List(task.Filter{Project: "trabalho"})
+	var parent, child *task.Task
+	for _, tk := range tasks {
+		if tk.ParentID == 0 {
+			parent = tk
+		} else {
+			child = tk
+		}
+	}
+	if err := a.checkMoveCycle(parent.ID, child.ID); err == nil {
+		t.Fatal("moving a task under its own child must be rejected")
+	}
+	if err := a.checkMoveCycle(child.ID, parent.ID); err != nil {
+		t.Fatalf("valid move rejected: %v", err)
+	}
+	if err := a.checkMoveCycle(parent.ID, 9999); err == nil {
+		t.Fatal("nonexistent parent must be rejected")
+	}
+}
+
+func TestFormWaitField(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	m = drive(t, m, key("f2"))
+	m = typeText(t, m, "esperar fornecedor")
+	for i := 0; i < fWait; i++ { // tab to the wait field
+		m = drive(t, m, key("tab"))
+	}
+	m = typeText(t, m, "3d")
+	m = drive(t, m, key("enter"))
+
+	tasks, _ := s.List(task.Filter{Text: "esperar fornecedor", IncludeAll: true})
+	if len(tasks) != 1 || tasks[0].Wait == nil {
+		t.Fatalf("expected task with wait date, got %+v", tasks)
 	}
 }
 

@@ -273,7 +273,10 @@ func (s *Store) List(f task.Filter) ([]*task.Task, error) {
 		pat := "%" + escapeLike(f.Text) + "%"
 		args = append(args, pat, pat)
 	}
-	if f.HideWaiting {
+	if f.WaitingOnly {
+		where = append(where, "t.wait IS NOT NULL AND t.wait > ?")
+		args = append(args, fmtTime(time.Now()))
+	} else if f.HideWaiting {
 		where = append(where, "(t.wait IS NULL OR t.wait <= ?)")
 		args = append(args, fmtTime(time.Now()))
 	}
@@ -310,8 +313,8 @@ func (s *Store) List(f task.Filter) ([]*task.Task, error) {
 }
 
 // BuildTree links Children among the given tasks. Tasks whose parent is not
-// in the set stay at the top level. Returns roots ordered by urgency.
-func BuildTree(tasks []*task.Task, now time.Time) []*task.Task {
+// in the set stay at the top level. Siblings are ordered by the given mode.
+func BuildTree(tasks []*task.Task, now time.Time, mode task.SortMode) []*task.Task {
 	byID := make(map[int64]*task.Task, len(tasks))
 	for _, t := range tasks {
 		t.Children = nil
@@ -325,31 +328,54 @@ func BuildTree(tasks []*task.Task, now time.Time) []*task.Task {
 			roots = append(roots, t)
 		}
 	}
-	sortByUrgency(roots, now)
+	sortTasks(roots, now, mode)
 	for _, t := range tasks {
-		sortByUrgency(t.Children, now)
+		sortTasks(t.Children, now, mode)
 	}
 	return roots
 }
 
-func sortByUrgency(ts []*task.Task, now time.Time) {
-	sort.SliceStable(ts, func(i, j int) bool {
-		ui := task.Urgency(ts[i], now, hasPendingChildren(ts[i]))
-		uj := task.Urgency(ts[j], now, hasPendingChildren(ts[j]))
-		if ui != uj {
-			return ui > uj
-		}
-		di, dj := ts[i].Due, ts[j].Due
-		switch {
-		case di != nil && dj != nil && !di.Equal(*dj):
-			return di.Before(*dj)
-		case di != nil && dj == nil:
-			return true
-		case di == nil && dj != nil:
-			return false
-		}
-		return ts[i].ID < ts[j].ID
-	})
+func sortTasks(ts []*task.Task, now time.Time, mode task.SortMode) {
+	switch mode {
+	case task.SortDue:
+		sort.SliceStable(ts, func(i, j int) bool {
+			if c := compareDue(ts[i].Due, ts[j].Due); c != 0 {
+				return c < 0
+			}
+			return ts[i].ID < ts[j].ID
+		})
+	case task.SortCreated:
+		sort.SliceStable(ts, func(i, j int) bool { return ts[i].ID < ts[j].ID })
+	default: // urgency
+		sort.SliceStable(ts, func(i, j int) bool {
+			ui := task.Urgency(ts[i], now, hasPendingChildren(ts[i]))
+			uj := task.Urgency(ts[j], now, hasPendingChildren(ts[j]))
+			if ui != uj {
+				return ui > uj
+			}
+			if c := compareDue(ts[i].Due, ts[j].Due); c != 0 {
+				return c < 0
+			}
+			return ts[i].ID < ts[j].ID
+		})
+	}
+}
+
+// compareDue orders earlier dates first, nil last.
+func compareDue(a, b *time.Time) int {
+	switch {
+	case a != nil && b != nil && a.Equal(*b):
+		return 0
+	case a != nil && b != nil && a.Before(*b):
+		return -1
+	case a != nil && b != nil:
+		return 1
+	case a != nil:
+		return -1
+	case b != nil:
+		return 1
+	}
+	return 0
 }
 
 func hasPendingChildren(t *task.Task) bool {

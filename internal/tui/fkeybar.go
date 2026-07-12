@@ -6,7 +6,7 @@ type fkey struct{ num, label string }
 
 var mainKeys = []fkey{
 	{"1", "Ajuda"}, {"2", "Add"}, {"3", "Ver"}, {"4", "Edit"}, {"5", "Nota"},
-	{"6", "Sub"}, {"7", "Busca"}, {"8", "Del"}, {"9", "Done"}, {"10", "Sair"},
+	{"6", "Mover"}, {"7", "Busca"}, {"8", "Del"}, {"9", "Done"}, {"10", "Sair"},
 }
 
 // renderFKeyBar draws the classic NC bottom bar: white number on black,

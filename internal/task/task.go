@@ -40,8 +40,8 @@ type Task struct {
 	ModifiedAt  time.Time
 	CompletedAt *time.Time
 
-	// Children is populated when loading the task tree.
-	Children []*Task
+	// Children is populated when loading the task tree; never serialized.
+	Children []*Task `json:"-"`
 }
 
 func (t *Task) HasTag(tag string) bool {

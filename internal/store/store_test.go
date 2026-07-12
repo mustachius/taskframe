@@ -135,7 +135,7 @@ func TestSubtasksAndTree(t *testing.T) {
 	s.AddTask(child)
 
 	list, _ := s.List(task.Filter{Project: "work"})
-	roots := BuildTree(list, time.Now())
+	roots := BuildTree(list, time.Now(), task.SortUrgency)
 	if len(roots) != 1 {
 		t.Fatalf("expected 1 root, got %d", len(roots))
 	}
@@ -164,6 +164,81 @@ func TestNotesAndActivity(t *testing.T) {
 	notes, _ = s.Notes(tk.ID)
 	if len(notes) != 0 {
 		t.Fatal("expected note removed by undo")
+	}
+}
+
+func TestSettings(t *testing.T) {
+	s := openTest(t)
+	v, err := s.GetSetting("theme")
+	if err != nil || v != "" {
+		t.Fatalf("unset key: v=%q err=%v", v, err)
+	}
+	if err := s.SetSetting("theme", "dark"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSetting("theme", "amber"); err != nil { // upsert
+		t.Fatal(err)
+	}
+	v, _ = s.GetSetting("theme")
+	if v != "amber" {
+		t.Fatalf("expected amber, got %q", v)
+	}
+	// settings must not touch the activity log (undo exception)
+	if _, err := s.Undo(); err == nil {
+		t.Fatal("expected nothing to undo after settings writes")
+	}
+}
+
+func TestExportImportRoundtrip(t *testing.T) {
+	src := openTest(t)
+	due := time.Now().Add(24 * time.Hour)
+	parent := &task.Task{Title: "pai", Project: "work", Tags: []string{"a", "b"}, Due: &due}
+	src.AddTask(parent)
+	child := &task.Task{Title: "filho", ParentID: parent.ID}
+	src.AddTask(child)
+	src.AddNote(parent.ID, "uma nota")
+	src.CompleteTask(child.ID)
+	// move child under a NEW task with higher id, then reparent: child's
+	// parent id ends up greater than its own id (FK-order stress)
+	late := &task.Task{Title: "pai tardio"}
+	src.AddTask(late)
+	child2, _ := src.GetTask(child.ID)
+	child2.ParentID = late.ID
+	src.UpdateTask(child2)
+
+	d, err := src.Export()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dst := openTest(t)
+	if err := dst.Import(d); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	d2, err := dst.Export()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d2.Tasks) != len(d.Tasks) || len(d2.Notes) != len(d.Notes) || len(d2.Activity) != len(d.Activity) {
+		t.Fatalf("roundtrip mismatch: %d/%d tasks, %d/%d notes, %d/%d activity",
+			len(d2.Tasks), len(d.Tasks), len(d2.Notes), len(d.Notes), len(d2.Activity), len(d.Activity))
+	}
+	got, err := dst.GetTask(parent.ID)
+	if err != nil || got.Title != "pai" || len(got.Tags) != 2 {
+		t.Fatalf("restored parent mismatch: %+v (%v)", got, err)
+	}
+	// undo must keep working on the restored log (last op = the reparent)
+	if _, err := dst.Undo(); err != nil {
+		t.Fatalf("undo on restored db: %v", err)
+	}
+	gotChild, _ := dst.GetTask(child.ID)
+	if gotChild.ParentID != parent.ID {
+		t.Fatalf("undo should restore original parent, got %d", gotChild.ParentID)
+	}
+
+	// import into a non-empty db must fail
+	if err := dst.Import(d); err == nil {
+		t.Fatal("import into non-empty db must fail")
 	}
 }
 

@@ -2,7 +2,9 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +31,10 @@ func Run(s *store.Store, args []string) error {
 		return cmdUndo(s)
 	case "purge":
 		return cmdPurge(s)
+	case "export":
+		return cmdExport(s)
+	case "import":
+		return cmdImport(s, rest)
 	case "help", "-h", "--help":
 		printHelp()
 		return nil
@@ -50,6 +56,8 @@ uso:
   taskframe note <id> <texto>
   taskframe undo
   taskframe purge               remove definitivamente tarefas deletadas
+  taskframe export              backup JSON completo no stdout
+  taskframe import <arquivo>    restaura backup (apenas em banco vazio)
 
 tokens (add e list):
   pro:work.api    projeto (hierarquia com pontos)
@@ -224,6 +232,36 @@ func cmdUndo(s *store.Store) error {
 		return err
 	}
 	fmt.Println("desfeito:", desc)
+	return nil
+}
+
+func cmdExport(s *store.Store) error {
+	d, err := s.Export()
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(d)
+}
+
+func cmdImport(s *store.Store, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("uso: taskframe import <arquivo.json>")
+	}
+	data, err := os.ReadFile(args[0])
+	if err != nil {
+		return err
+	}
+	var d store.Dump
+	if err := json.Unmarshal(data, &d); err != nil {
+		return fmt.Errorf("json inválido: %w", err)
+	}
+	if err := s.Import(&d); err != nil {
+		return err
+	}
+	fmt.Printf("importado: %d tarefa(s), %d nota(s), %d registro(s) de histórico\n",
+		len(d.Tasks), len(d.Notes), len(d.Activity))
 	return nil
 }
 

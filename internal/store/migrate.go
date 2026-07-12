@@ -9,8 +9,13 @@ import (
 var schemaSQL string
 
 // migrations is an ordered list; index+1 == resulting user_version.
+// Never edit an existing entry — append a new one.
 var migrations = []string{
 	schemaSQL,
+	`CREATE TABLE settings (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	);`,
 }
 
 func (s *Store) migrate() error {

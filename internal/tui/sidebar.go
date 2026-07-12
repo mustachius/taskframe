@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jvsaga/taskframe/internal/task"
 )
@@ -13,35 +14,40 @@ type sbKind int
 const (
 	sbAll sbKind = iota
 	sbProject
+	sbToday
+	sbOverdue
+	sbWeek
+	sbWaiting
+	sbTag
 	sbDone
 	sbDeleted
 	sbSeparator
 )
 
 type sbItem struct {
-	kind    sbKind
-	label   string
-	project string // dotted path for sbProject
-	depth   int
-	count   int
+	kind  sbKind
+	label string
+	value string // dotted project path (sbProject) or tag name (sbTag)
+	depth int
+	count int
 }
 
-// Sidebar is the left panel: project tree + virtual status filters.
+// Sidebar is the left panel: project tree, virtual filters and tags.
 type Sidebar struct {
 	items  []sbItem
 	cursor int
 	offset int
 }
 
-// SetCounts rebuilds the tree from per-project pending counts.
-func (s *Sidebar) SetCounts(counts map[string]int, total, done, del int) {
+// SetCounts rebuilds the item list from freshly loaded counts.
+func (s *Sidebar) SetCounts(d sidebarData) {
 	prev := s.selectedKey()
 	s.items = s.items[:0]
-	s.items = append(s.items, sbItem{kind: sbAll, label: "(todas)", count: total})
+	s.items = append(s.items, sbItem{kind: sbAll, label: "(todas)", count: d.total})
 
 	// every node in the dotted hierarchy, with counts aggregated upward
 	nodes := map[string]int{}
-	for p, n := range counts {
+	for p, n := range d.counts {
 		if p == "" {
 			continue
 		}
@@ -59,15 +65,35 @@ func (s *Sidebar) SetCounts(counts map[string]int, total, done, del int) {
 	for _, p := range paths {
 		parts := task.ProjectParts(p)
 		s.items = append(s.items, sbItem{
-			kind: sbProject, label: parts[len(parts)-1], project: p,
+			kind: sbProject, label: parts[len(parts)-1], value: p,
 			depth: len(parts) - 1, count: nodes[p],
 		})
 	}
 
 	s.items = append(s.items,
 		sbItem{kind: sbSeparator},
-		sbItem{kind: sbDone, label: "Concluídas", count: done},
-		sbItem{kind: sbDeleted, label: "Deletadas", count: del},
+		sbItem{kind: sbToday, label: "Hoje", count: d.today},
+		sbItem{kind: sbOverdue, label: "Atrasadas", count: d.overdue},
+		sbItem{kind: sbWeek, label: "Semana", count: d.week},
+		sbItem{kind: sbWaiting, label: "Aguardando", count: d.waiting},
+	)
+
+	if len(d.tags) > 0 {
+		s.items = append(s.items, sbItem{kind: sbSeparator})
+		tags := make([]string, 0, len(d.tags))
+		for t := range d.tags {
+			tags = append(tags, t)
+		}
+		sort.Strings(tags)
+		for _, t := range tags {
+			s.items = append(s.items, sbItem{kind: sbTag, label: "+" + t, value: t, count: d.tags[t]})
+		}
+	}
+
+	s.items = append(s.items,
+		sbItem{kind: sbSeparator},
+		sbItem{kind: sbDone, label: "Concluídas", count: d.done},
+		sbItem{kind: sbDeleted, label: "Deletadas", count: d.del},
 	)
 
 	// keep selection stable across reloads
@@ -80,7 +106,7 @@ func (s *Sidebar) SetCounts(counts map[string]int, total, done, del int) {
 	}
 }
 
-func itemKey(it sbItem) string { return fmt.Sprintf("%d:%s", it.kind, it.project) }
+func itemKey(it sbItem) string { return fmt.Sprintf("%d:%s", it.kind, it.value) }
 
 func (s *Sidebar) selectedKey() string {
 	if s.cursor < len(s.items) {
@@ -107,14 +133,31 @@ func (s *Sidebar) Move(delta int) {
 	}
 }
 
+func endOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, t.Location())
+}
+
 // Filter returns the task filter for the selected item.
 func (s *Sidebar) Filter() task.Filter {
 	if s.cursor >= len(s.items) {
 		return task.Filter{}
 	}
+	now := time.Now()
 	switch it := s.items[s.cursor]; it.kind {
 	case sbProject:
-		return task.Filter{Project: it.project}
+		return task.Filter{Project: it.value}
+	case sbToday:
+		d := endOfDay(now)
+		return task.Filter{DueBefore: &d}
+	case sbOverdue:
+		return task.Filter{DueBefore: &now}
+	case sbWeek:
+		d := endOfDay(now.AddDate(0, 0, 7))
+		return task.Filter{DueBefore: &d}
+	case sbWaiting:
+		return task.Filter{WaitingOnly: true}
+	case sbTag:
+		return task.Filter{Tags: []string{it.value}}
 	case sbDone:
 		return task.Filter{Status: task.StatusDone}
 	case sbDeleted:
@@ -131,7 +174,17 @@ func (s *Sidebar) Title() string {
 	}
 	switch it := s.items[s.cursor]; it.kind {
 	case sbProject:
-		return "Tarefas: " + it.project
+		return "Tarefas: " + it.value
+	case sbToday:
+		return "Hoje"
+	case sbOverdue:
+		return "Atrasadas"
+	case sbWeek:
+		return "Próximos 7 dias"
+	case sbWaiting:
+		return "Aguardando"
+	case sbTag:
+		return "Tarefas: +" + it.value
 	case sbDone:
 		return "Concluídas"
 	case sbDeleted:
@@ -144,7 +197,7 @@ func (s *Sidebar) Title() string {
 // CurrentProject returns the selected project path ("" when not on one).
 func (s *Sidebar) CurrentProject() string {
 	if s.cursor < len(s.items) && s.items[s.cursor].kind == sbProject {
-		return s.items[s.cursor].project
+		return s.items[s.cursor].value
 	}
 	return ""
 }
@@ -174,8 +227,13 @@ func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 		row := " " + label + strings.Repeat(" ", gap-1) + count + " "
 		row = truncRunes(row, w)
 		style := th.Text
-		if it.kind == sbDone || it.kind == sbDeleted {
+		switch it.kind {
+		case sbDone, sbDeleted:
 			style = th.Dim
+		case sbOverdue:
+			if it.count > 0 {
+				style = th.Overdue
+			}
 		}
 		if i == s.cursor && focused {
 			style = th.Cursor
