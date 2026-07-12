@@ -9,12 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 )
-
-func visibleWidth(s string) int { return lipgloss.Width(s) }
 
 // Modal is a dialog that captures all input while open.
 type Modal interface {
@@ -236,7 +233,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return errMsg{err}
 			}
 			if msg.parentID != 0 {
-				if err := a.checkMoveCycle(msg.taskID, msg.parentID); err != nil {
+				if err := a.store.CheckMoveCycle(msg.taskID, msg.parentID); err != nil {
 					return errMsg{err}
 				}
 			}
@@ -450,27 +447,6 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.reload()
 	}
 	return a, nil
-}
-
-// checkMoveCycle rejects a new parent that is the task itself or any of its
-// descendants — BuildTree would silently drop the whole cycle from view.
-func (a *App) checkMoveCycle(taskID, newParentID int64) error {
-	seen := map[int64]bool{}
-	for id := newParentID; id != 0; {
-		if id == taskID {
-			return fmt.Errorf("movimento criaria um ciclo: %d é descendente de %d", newParentID, taskID)
-		}
-		if seen[id] {
-			return fmt.Errorf("hierarquia corrompida: ciclo existente em %d", id)
-		}
-		seen[id] = true
-		p, err := a.store.GetTask(id)
-		if err != nil {
-			return fmt.Errorf("pai %d não existe", id)
-		}
-		id = p.ParentID
-	}
-	return nil
 }
 
 func (a *App) applySidebar() (tea.Model, tea.Cmd) {

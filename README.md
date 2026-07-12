@@ -1,20 +1,43 @@
 # TaskFrame
 
-Gerenciador de tarefas no terminal com visual anos 90 estilo Norton Commander.
-Inspirado no [taskwarrior](https://taskwarrior.org/), porém mais simples.
+Gerenciador de tarefas no terminal, inspirado no
+[taskwarrior](https://taskwarrior.org/) porém mais simples. A interface padrão
+é um REPL inline estilo Claude Code: logo no topo, um prompt embaixo, e a saída
+rola no histórico do próprio terminal.
 
 ```
-╔═ Projetos ═════════════╗╔═ Tarefas ═══════════════════════════════╗
-║ (todas)              4 ║║    1 [ ] H 14/07  Comprar leite +urgente║
-║ casa                 2 ║║ ▾  2 [ ]          Revisar relatório     ║
-║   mercado            1 ║║    4 [ ]            Escrever testes     ║
-║ trabalho             2 ║║    3 [ ]          Regar plantas         ║
-╚════════════════════════╝╚═════════════════════════════════════════╝
- 4 tarefa(s)
-1Ajuda 2Add 3Ver 4Edit 5Nota 6Sub 7Busca 8Del 9Done 10Sair
+      .  *  .      T A S K F R A M E
+   .   \ | /   .   tarefas no terminal
+ --  --  (*)  --
+   .   / | \   .
+
+› add comprar leite pro:casa due:sex
+  ✓ tarefa 5 criada: comprar leite
+
+› list
+╭─ tarefas ────────────────────────────────╮
+│ › 5 [ ] H sex    comprar leite            │
+│   3 [ ]          revisar relatório        │
+╰──────────────────────────────────────────╯
+  ↑↓ move · enter abre · d conclui · esc fecha
+
+╭──────────────────────────────────────────╮
+│ › _                                       │
+╰──────────────────────────────────────────╯
 ```
 
-## Build
+## Instalação
+
+Para rodar `taskframe` de qualquer pasta (como o `claude`):
+
+```powershell
+.\install.ps1
+```
+
+Compila e instala em `%LOCALAPPDATA%\Programs\taskframe`, adicionando ao PATH do
+usuário (sem admin). Abra um novo terminal e rode `taskframe`.
+
+Ou só compile localmente:
 
 ```
 go build -o taskframe.exe ./cmd/taskframe
@@ -22,8 +45,9 @@ go build -o taskframe.exe ./cmd/taskframe
 
 ## Uso
 
-`taskframe` sem argumentos abre a TUI. Com argumentos, funciona como CLI de
-captura rápida:
+`taskframe` sem argumentos abre o REPL. `taskframe classic` abre a antiga TUI
+Norton Commander de dois painéis. Com um subcomando, funciona como CLI de
+captura rápida (sem abrir interface):
 
 ```
 taskframe add "Comprar leite" pro:casa.mercado +urgente due:tomorrow prio:H
@@ -41,7 +65,29 @@ Tokens aceitos em `add` e `list`: `pro:projeto.sub`, `+tag`, `due:<data>`,
 `prio:H|M|L`, `wait:<data>`, `recur:daily|weekly|3d…`, `sub:<id>` (subtarefa).
 Datas: `today`, `tomorrow`, `3d`, `2w`, `fri`/`sex`, `15/08`, `2026-08-15`, `eow`, `eom`.
 
-## TUI
+## REPL (interface padrão)
+
+Comandos naturais (sem barra) e de app (com barra). Histórico com `↑`/`↓` e
+autocompletar com `Tab` (comandos, projetos e tags).
+
+| Comando | Ação |
+|---|---|
+| `add <título> [tokens]` | cria tarefa |
+| `list [tokens]` | abre a lista navegável (setas, `enter` abre, `esc` fecha) |
+| `done <id…>` · `del <id…>` | conclui · deleta |
+| `note <id> [texto]` | nota (sem texto abre um campo) |
+| `edit <id> <tokens>` | altera campos |
+| `move <id> pro:x sub:N` | muda projeto/pai (`sub:0` vira raiz) |
+| `undo` | desfaz a última operação |
+| `/theme [nome]` · `/sort [modo]` | tema · ordenação |
+| `/help` · `/clear` · `/quit` | ajuda · limpa · sai (`Ctrl+D`) |
+
+Na lista navegável: `↑↓`/`jk` move, `enter` abre o detalhe (notas + histórico),
+`d`/espaço conclui, `x` deleta, `esc` fecha.
+
+## TUI clássica (`taskframe classic`)
+
+A antiga interface Norton Commander de dois painéis continua disponível:
 
 | Tecla | Ação |
 |---|---|
@@ -54,19 +100,16 @@ Datas: `today`, `tomorrow`, `3d`, `2w`, `fri`/`sex`, `15/08`, `2026-08-15`, `eow
 | `F9`/`d`/`Espaço` | concluir / reabrir |
 | `F8`/`x` | deletar (com confirmação) |
 | `F7`/`/` | busca por texto |
-| `o` | alterna ordenação (urgência / vencimento / criação) |
-| `t` | alterna tema |
-| `u` | desfazer |
+| `o` · `t` · `u` | ordenação · tema · desfazer |
 | `F10`/`q` | sair |
-
-Toda tecla de função tem um alias em letra (alguns terminais capturam F-keys).
 
 A sidebar traz, além dos projetos, filtros virtuais (**Hoje**, **Atrasadas**,
 **Semana**, **Aguardando**) e as tags em uso.
 
 ## Temas
 
-Quatro temas, trocáveis em tempo real com `t` (a escolha fica salva):
+Quatro temas, trocáveis com `/theme` (REPL) ou `t` (clássica); a escolha fica
+salva:
 
 - **dark** (padrão) — usa o fundo do seu terminal, acentos discretos
 - **borland** — navy retrô estilo Turbo Vision, dessaturado
@@ -79,7 +122,7 @@ Precedência: flag `--theme` > env `TASKFRAME_THEME` > escolha salva > dark.
 Banco SQLite em `%APPDATA%\taskframe\taskframe.db` (Windows). Sobrescreva com
 a variável `TASKFRAME_DB` ou a flag `--db`. Toda mutação é registrada na
 tabela `activity` — o histórico completo de cada tarefa fica visível no
-detalhe (F3) e alimenta o `undo`.
+detalhe e alimenta o `undo`.
 
 Ordenação padrão por **urgência** (fórmula ponderada estilo taskwarrior:
 vencimento, prioridade, tag `+next`, idade, subtarefas pendentes).
