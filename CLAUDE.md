@@ -33,6 +33,8 @@ Camadas com dependência estrita em um só sentido — violar isso é regressão
 - **Subtarefas**: adjacency list (`parent_id`), nesting arbitrário. `store.BuildTree()` monta a árvore em memória a partir da lista flat — sem CTEs recursivas.
 - **Urgency nunca é armazenada** — calculada em `task.Urgency()` na leitura, para a fórmula poder mudar sem migration. Coeficientes em `DefaultCoefficients` (urgency.go).
 - **Audit log + undo**: toda mutação grava linhas na tabela `activity` dentro da MESMA transação, agrupadas por `op_id` (hex aleatório). `store.Undo()` acha o último op não-desfeito (ops desfeitos são marcados por uma linha `kind='undo'` cujo `field` guarda o op_id revertido) e reverte linha a linha. Undo de um `done` com recorrência reverte o done E apaga a instância clonada — porque ambos compartilham o op_id. **Ao adicionar qualquer mutação nova, registre em `activity` no mesmo tx e implemente o caso reverso em `undoModify`/`Undo`.**
+- **Exceção deliberada**: a tabela `settings` (migration 2; tema, ordenação) NÃO loga em `activity` — são preferências de máquina, e o undo nunca deve reverter uma troca de tema. Settings também ficam fora do export.
+- **Export/import** (`store/export.go`): backup JSON completo com ids preservados verbatim (o log restaurado mantém o undo funcionando). Import só em banco vazio, em tx única com `PRAGMA defer_foreign_keys = ON` (após um Move, um filho pode referenciar pai com id maior).
 - **Delete é soft** (`status='deleted'`) para o undo funcionar; `purge` faz o hard-delete.
 - **Timestamps**: TEXT RFC3339 UTC (ordenável, legível no sqlite3). Helpers `fmtTime`/`parseTime` em store.go — sempre use-os.
 - **Migrations**: `PRAGMA user_version` + slice ordenado em `migrate.go` (índice+1 == versão). schema.sql embutido via `go:embed` é a migration 1; alterações de schema entram como novas strings no slice, nunca editando a 1.
@@ -42,7 +44,9 @@ Camadas com dependência estrita em um só sentido — violar isso é regressão
 
 `tui/app.go` é o root model e único dono do estado: `filter task.Filter` atual, foco (sidebar/lista), e `modal Modal` (interface local; um modal por vez — Form, Confirm, NotePrompt, Detail, Help). Fluxo: tecla → modal ou painel → mensagem de intenção (`formSubmittedMsg`, `noteSubmittedMsg`...) → App persiste via `tea.Cmd` → `statusMsg` → **todo `statusMsg` dispara `reload()`** (recarrega tarefas + projetos). Sem mutação otimista.
 
-- Visual inteiro em `tui/theme.go`: paleta DOS (ANSI 4/6/7/15/11...), `drawBox()` desenha painéis com título embutido na borda (lipgloss v1 não tem border title). Flag `--ascii` troca para bordas simples (conhost legado).
+- Visual inteiro em `tui/theme.go`: **4 temas nomeados** (`dark` padrão sem pintar fundo, `borland` navy truecolor, `green`/`amber` fósforo) definidos como structs `palette` → builder `NewTheme(name, ascii)`. Tecla `t` cicla e persiste em settings; precedência resolvida em `main.go` (`--theme` > `TASKFRAME_THEME` > setting > dark). Ao adicionar cor nova, adicione em TODAS as paletas. `drawBox()` desenha painéis com título embutido na borda (lipgloss v1 não tem border title). Flag `--ascii` troca para bordas simples (conhost legado) e compõe com qualquer tema.
+- Ordenação: `task.SortMode` (string: urgency/due/created), tecla `o` cicla e persiste; `store.BuildTree(tasks, now, mode)`.
+- Mover (F6/`m`): modal `move.go`; o App valida ciclos via `checkMoveCycle` antes de `UpdateTask` — sem isso, `BuildTree` some silenciosamente com o subgrafo cíclico.
 - A lista de tarefas (`tasklist.go`) tem renderer de árvore próprio — `bubbles/table` não suporta indentação; não tentar migrar para ele.
 - **Toda F-key tem alias em letra** (`F2`/`a`, `F8`/`x`...) porque terminais/IDEs engolem F-keys. Manter ao adicionar atalhos; documentar em `help.go` e no README.
 - Textinputs usam `cursor.CursorStatic` — o blink gera ticks que travam os testes síncronos (e redraws desnecessários). Manter em inputs novos.
@@ -57,13 +61,14 @@ Stdlib `flag` + switch manual — **sem cobra** (decisão deliberada; os tokens 
 
 ## Estado atual (2026-07-12) e retomada
 
-Implementado e verificado: núcleo completo (tarefas, subtarefas, projetos hierárquicos, notas, activity log, filtros/busca) + urgency sort, undo, recorrência, wait/scheduled no domínio e CLI, soft-delete/purge, datas em linguagem natural (pt e en: `sex`, `fri`, `3d`, `eom`...). 15 testes passando; CLI e TUI verificadas fim-a-fim.
+**v1**: núcleo completo (tarefas, subtarefas, projetos hierárquicos, notas, activity log, filtros/busca) + urgency sort, undo, recorrência, soft-delete/purge, datas em linguagem natural (pt e en: `sex`, `fri`, `3d`, `eom`...).
 
-Pendente do roadmap original (fase 3):
-- wait/scheduled na TUI (hoje só via CLI `wait:`; falta campo no form e filtro virtual "Aguardando" na sidebar)
-- contexts (filtro default salvo — exigiria uma tabela `settings`)
-- toggle de modos de ordenação na TUI (hoje só urgency)
+**v2** (mesma data): sistema de 4 temas com persistência (motivado por "as cores doem os olhos" — o antigo fundo azul ANSI-4 foi substituído pelo `dark` como padrão); filtros virtuais Hoje/Atrasadas/Semana/Aguardando e seção de tags na sidebar; campos wait/scheduled no form e no detail; toggle de ordenação (`o`); diálogo Mover (F6/`m`) com validação de ciclo; export/import JSON; git + GitHub Actions CI (vet+test em ubuntu/windows, gofmt no ubuntu; `.gitattributes` força LF em `.go` para o check de gofmt não quebrar com autocrlf).
+
+Testes: ~25 casos; smoke tests da TUI cobrem tema, sort, filtros virtuais, move (com undo) e form com wait. CLI e TUI verificadas fim-a-fim.
+
+Ideias futuras (nada pendente do escopo aprovado):
+- contexts (filtro default salvo — a tabela settings já existe)
+- redo (undo do undo — o activity log suporta)
 - FTS5 para busca (só se a busca LIKE ficar lenta — improvável em escala pessoal)
-- filtro por tag na sidebar (tags filtram via CLI e busca, mas não têm seção na sidebar)
-
-O repositório ainda não tem git init (`.gitignore` já pronto).
+- lembretes/notificações (fora do escopo atual)

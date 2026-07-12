@@ -4,12 +4,20 @@ import "github.com/jvsaga/taskframe/internal/task"
 
 type tasksLoadedMsg struct{ tasks []*task.Task }
 
-type projectsLoadedMsg struct {
-	counts map[string]int
-	total  int
-	done   int
-	del    int
+// sidebarData carries everything the sidebar needs in one message.
+type sidebarData struct {
+	counts  map[string]int // pending per exact project string
+	tags    map[string]int // pending per tag
+	total   int
+	today   int
+	overdue int
+	week    int
+	waiting int
+	done    int
+	del     int
 }
+
+type projectsLoadedMsg struct{ data sidebarData }
 
 type detailLoadedMsg struct {
 	t     *task.Task
@@ -34,4 +42,10 @@ type confirmResultMsg struct{ ok bool }
 type noteSubmittedMsg struct {
 	taskID int64
 	body   string
+}
+
+type moveSubmittedMsg struct {
+	taskID   int64
+	project  string
+	parentID int64 // 0 = promote to root
 }

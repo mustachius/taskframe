@@ -17,7 +17,7 @@ func renderList(tasks []*task.Task) {
 		return
 	}
 	now := time.Now()
-	roots := store.BuildTree(tasks, now)
+	roots := store.BuildTree(tasks, now, task.SortUrgency)
 
 	fmt.Printf("%-4s %-3s %-4s %-10s %-30s %s\n", "ID", "St", "Pri", "Due", "Project", "Title")
 	fmt.Println(strings.Repeat("-", 78))

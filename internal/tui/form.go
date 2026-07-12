@@ -16,12 +16,14 @@ const (
 	fTags
 	fPrio
 	fDue
+	fWait
+	fScheduled
 	fRecur
 	fCount
 )
 
-var formLabels = [fCount]string{"Título", "Projeto", "Tags", "Prioridade", "Vencimento", "Recorrência"}
-var formHints = [fCount]string{"", "ex: casa.mercado", "separadas por espaço", "H, M, L ou vazio", "today, 3d, sex, 15/08...", "daily, weekly, 3d..."}
+var formLabels = [fCount]string{"Título", "Projeto", "Tags", "Prioridade", "Vencimento", "Aguardar até", "Agendada", "Recorrência"}
+var formHints = [fCount]string{"", "ex: casa.mercado", "separadas por espaço", "H, M, L ou vazio", "today, 3d, sex, 15/08...", "esconder até a data", "não cobrar antes da data", "daily, weekly, 3d..."}
 
 // Form is the add/edit task modal.
 type Form struct {
@@ -49,6 +51,12 @@ func NewForm(original *task.Task, parentID int64, defaultProject string) *Form {
 		f.inputs[fPrio].SetValue(string(original.Priority))
 		if original.Due != nil {
 			f.inputs[fDue].SetValue(original.Due.Format("02/01/2006"))
+		}
+		if original.Wait != nil {
+			f.inputs[fWait].SetValue(original.Wait.Format("02/01/2006"))
+		}
+		if original.Scheduled != nil {
+			f.inputs[fScheduled].SetValue(original.Scheduled.Format("02/01/2006"))
 		}
 		f.inputs[fRecur].SetValue(original.Recur)
 	} else {
@@ -100,15 +108,30 @@ func (f *Form) submit() (Modal, tea.Cmd) {
 		return f, nil
 	}
 
-	var due *time.Time
-	if v := strings.TrimSpace(f.inputs[fDue].Value()); v != "" {
+	parseDateField := func(idx int, name string) (*time.Time, bool) {
+		v := strings.TrimSpace(f.inputs[idx].Value())
+		if v == "" {
+			return nil, true
+		}
 		d, err := task.ParseDate(v, time.Now())
 		if err != nil {
-			f.errText = "vencimento inválido: " + v
-			f.setFocus(fDue)
-			return f, nil
+			f.errText = name + " inválido: " + v
+			f.setFocus(idx)
+			return nil, false
 		}
-		due = &d
+		return &d, true
+	}
+	due, ok := parseDateField(fDue, "vencimento")
+	if !ok {
+		return f, nil
+	}
+	wait, ok := parseDateField(fWait, "aguardar")
+	if !ok {
+		return f, nil
+	}
+	scheduled, ok := parseDateField(fScheduled, "agendada")
+	if !ok {
+		return f, nil
 	}
 
 	recur := strings.TrimSpace(f.inputs[fRecur].Value())
@@ -132,6 +155,8 @@ func (f *Form) submit() (Modal, tea.Cmd) {
 	t.Tags = strings.Fields(f.inputs[fTags].Value())
 	t.Priority = task.Priority(prio)
 	t.Due = due
+	t.Wait = wait
+	t.Scheduled = scheduled
 	t.Recur = recur
 
 	edit := f.original != nil

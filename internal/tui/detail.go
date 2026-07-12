@@ -40,7 +40,7 @@ func (d *Detail) Update(msg tea.Msg) (Modal, tea.Cmd) {
 
 func (d *Detail) View(th Theme, w, h int) string {
 	t := d.t
-	label := func(s string) string { return th.Dim.Render(padRowPlain(s, 14)) }
+	label := func(s string) string { return th.Dim.Render(padRowPlain(s, 16)) }
 	val := func(s string) string { return th.Text.Render(s) }
 
 	var lines []string
@@ -61,6 +61,12 @@ func (d *Detail) View(th Theme, w, h int) string {
 	}
 	if t.Due != nil {
 		add(" " + label("Vencimento") + val(t.Due.Format("02/01/2006")))
+	}
+	if t.Wait != nil {
+		add(" " + label("Aguardando até") + val(t.Wait.Format("02/01/2006")))
+	}
+	if t.Scheduled != nil {
+		add(" " + label("Agendada") + val(t.Scheduled.Format("02/01/2006")))
 	}
 	if t.Recur != "" {
 		add(" " + label("Recorrência") + val(t.Recur))

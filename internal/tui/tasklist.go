@@ -15,7 +15,7 @@ type listRow struct {
 	hasKids bool
 }
 
-// TaskList is the right panel: an urgency-sorted, expandable task tree.
+// TaskList is the right panel: a sortable, expandable task tree.
 type TaskList struct {
 	roots    []*task.Task
 	rows     []listRow
@@ -23,16 +23,19 @@ type TaskList struct {
 	offset   int
 	expanded map[int64]bool // default true; false = collapsed
 	total    int
+	sortMode task.SortMode
 }
 
 func NewTaskList() TaskList {
-	return TaskList{expanded: map[int64]bool{}}
+	return TaskList{expanded: map[int64]bool{}, sortMode: task.SortUrgency}
 }
+
+func (l *TaskList) SetSortMode(m task.SortMode) { l.sortMode = m }
 
 func (l *TaskList) SetTasks(tasks []*task.Task) {
 	prev := l.CursorID()
 	l.total = len(tasks)
-	l.roots = store.BuildTree(tasks, time.Now())
+	l.roots = store.BuildTree(tasks, time.Now(), l.sortMode)
 	l.rebuild()
 	l.cursor = 0
 	for i, r := range l.rows {

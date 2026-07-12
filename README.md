@@ -33,6 +33,8 @@ taskframe del 12                # soft-delete (undo desfaz, purge remove)
 taskframe note 12 "esperando o Marcos"
 taskframe undo                  # desfaz a última operação
 taskframe purge                 # remove definitivamente as deletadas
+taskframe export > backup.json  # backup completo (tarefas, notas, histórico)
+taskframe import backup.json    # restaura (apenas em banco vazio)
 ```
 
 Tokens aceitos em `add` e `list`: `pro:projeto.sub`, `+tag`, `due:<data>`,
@@ -46,15 +48,31 @@ Datas: `today`, `tomorrow`, `3d`, `2w`, `fri`/`sex`, `15/08`, `2026-08-15`, `eow
 | `Tab` | alterna painéis (projetos ↔ tarefas) |
 | `↑↓`/`jk`, `←→`/`hl` | navega / recolhe / expande subtarefas |
 | `Enter`, `F3` | detalhes: notas + histórico completo |
-| `F2`/`a` · `F6`/`s` | nova tarefa · nova subtarefa |
+| `F2`/`a` · `s` | nova tarefa · nova subtarefa |
 | `F4`/`e` · `F5`/`n` | editar · adicionar nota |
+| `F6`/`m` | mover (projeto / pai) |
 | `F9`/`d`/`Espaço` | concluir / reabrir |
 | `F8`/`x` | deletar (com confirmação) |
 | `F7`/`/` | busca por texto |
+| `o` | alterna ordenação (urgência / vencimento / criação) |
+| `t` | alterna tema |
 | `u` | desfazer |
 | `F10`/`q` | sair |
 
 Toda tecla de função tem um alias em letra (alguns terminais capturam F-keys).
+
+A sidebar traz, além dos projetos, filtros virtuais (**Hoje**, **Atrasadas**,
+**Semana**, **Aguardando**) e as tags em uso.
+
+## Temas
+
+Quatro temas, trocáveis em tempo real com `t` (a escolha fica salva):
+
+- **dark** (padrão) — usa o fundo do seu terminal, acentos discretos
+- **borland** — navy retrô estilo Turbo Vision, dessaturado
+- **green** / **amber** — fósforo monocromático estilo CRT
+
+Precedência: flag `--theme` > env `TASKFRAME_THEME` > escolha salva > dark.
 
 ## Dados
 

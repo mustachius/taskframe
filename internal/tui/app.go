@@ -4,6 +4,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -30,9 +31,19 @@ const (
 
 const sidebarWidth = 26
 
+// Options configures the TUI at startup (resolved in main.go).
+type Options struct {
+	ThemeName string
+	ASCII     bool
+	SortMode  task.SortMode
+}
+
 type App struct {
 	store *store.Store
 	th    Theme
+	ascii bool
+
+	sortMode task.SortMode
 
 	w, h  int
 	focus focusArea
@@ -51,25 +62,27 @@ type App struct {
 	pendingDelete int64
 }
 
-func Run(s *store.Store, ascii bool) error {
-	app := newApp(s, ascii)
+func Run(s *store.Store, opts Options) error {
+	app := newApp(s, opts)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
 
-func newApp(s *store.Store, ascii bool) *App {
+func newApp(s *store.Store, opts Options) *App {
 	search := textinput.New()
 	search.Prompt = "Busca: "
 	search.CharLimit = 100
 	search.Width = 40
 	search.Cursor.SetMode(cursor.CursorStatic)
 	return &App{
-		store:  s,
-		th:     NewTheme(ascii),
-		focus:  focusList,
-		list:   NewTaskList(),
-		search: search,
+		store:    s,
+		th:       NewTheme(opts.ThemeName, opts.ASCII),
+		ascii:    opts.ASCII,
+		sortMode: task.NormalizeSortMode(string(opts.SortMode)),
+		focus:    focusList,
+		list:     NewTaskList(),
+		search:   search,
 	}
 }
 
@@ -81,7 +94,7 @@ func (a *App) Init() tea.Cmd {
 
 func (a *App) loadTasksCmd() tea.Cmd {
 	f := a.filter
-	if f.Status == "" && !f.IncludeAll {
+	if f.Status == "" && !f.IncludeAll && !f.WaitingOnly {
 		f.HideWaiting = true
 	}
 	return func() tea.Msg {
@@ -103,9 +116,36 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 		for _, n := range counts {
 			total += n
 		}
-		done, _ := a.store.List(task.Filter{Status: task.StatusDone})
-		del, _ := a.store.List(task.Filter{Status: task.StatusDeleted})
-		return projectsLoadedMsg{counts: counts, total: total, done: len(done), del: len(del)}
+		tags, err := a.store.AllTags()
+		if err != nil {
+			return errMsg{err}
+		}
+		// counts mirror what each virtual filter shows when selected
+		// (pending + waiting hidden), so numbers always match the list
+		now := time.Now()
+		eodToday := endOfDay(now)
+		eodWeek := endOfDay(now.AddDate(0, 0, 7))
+		count := func(f task.Filter) int {
+			if f.Status == "" && !f.WaitingOnly { // same rule as loadTasksCmd
+				f.HideWaiting = true
+			}
+			ts, err := a.store.List(f)
+			if err != nil {
+				return 0
+			}
+			return len(ts)
+		}
+		return projectsLoadedMsg{data: sidebarData{
+			counts:  counts,
+			tags:    tags,
+			total:   total,
+			today:   count(task.Filter{DueBefore: &eodToday}),
+			overdue: count(task.Filter{DueBefore: &now}),
+			week:    count(task.Filter{DueBefore: &eodWeek}),
+			waiting: count(task.Filter{WaitingOnly: true}),
+			done:    count(task.Filter{Status: task.StatusDone}),
+			del:     count(task.Filter{Status: task.StatusDeleted}),
+		}}
 	}
 }
 
@@ -153,7 +193,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case projectsLoadedMsg:
-		a.sidebar.SetCounts(msg.counts, msg.total, msg.done, msg.del)
+		a.sidebar.SetCounts(msg.data)
 		return a, nil
 
 	case detailLoadedMsg:
@@ -186,6 +226,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return errMsg{err}
 			}
 			return statusMsg(fmt.Sprintf("nota adicionada à tarefa %d", msg.taskID))
+		}
+
+	case moveSubmittedMsg:
+		a.modal = nil
+		return a, func() tea.Msg {
+			t, err := a.store.GetTask(msg.taskID) // fresh copy, never the list's pointer
+			if err != nil {
+				return errMsg{err}
+			}
+			if msg.parentID != 0 {
+				if err := a.checkMoveCycle(msg.taskID, msg.parentID); err != nil {
+					return errMsg{err}
+				}
+			}
+			t.Project = msg.project
+			t.ParentID = msg.parentID
+			if err := a.store.UpdateTask(t); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(fmt.Sprintf("tarefa %d movida", msg.taskID))
 		}
 
 	case confirmResultMsg:
@@ -315,9 +375,15 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.modal = NewForm(nil, 0, a.sidebar.CurrentProject())
 		return a, nil
 
-	case "f6", "s":
+	case "s":
 		if t := a.list.CursorTask(); t != nil {
 			a.modal = NewForm(nil, t.ID, t.Project)
+		}
+		return a, nil
+
+	case "f6", "m":
+		if t := a.list.CursorTask(); t != nil {
+			a.modal = NewMove(t.ID, t.Title, t.Project, t.ParentID)
 		}
 		return a, nil
 
@@ -358,10 +424,53 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return statusMsg("desfeito: " + desc)
 		}
 
+	case "t":
+		next := NextTheme(a.th.Name)
+		a.th = NewTheme(next, a.ascii)
+		return a, func() tea.Msg {
+			if err := a.store.SetSetting("theme", next); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg("tema: " + next)
+		}
+
+	case "o":
+		a.sortMode = a.sortMode.Next()
+		a.list.SetSortMode(a.sortMode)
+		mode := a.sortMode
+		// the statusMsg triggers reload(), which re-sorts the list
+		return a, func() tea.Msg {
+			if err := a.store.SetSetting("sort", string(mode)); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg("ordenação: " + mode.Label())
+		}
+
 	case "r":
 		return a, a.reload()
 	}
 	return a, nil
+}
+
+// checkMoveCycle rejects a new parent that is the task itself or any of its
+// descendants — BuildTree would silently drop the whole cycle from view.
+func (a *App) checkMoveCycle(taskID, newParentID int64) error {
+	seen := map[int64]bool{}
+	for id := newParentID; id != 0; {
+		if id == taskID {
+			return fmt.Errorf("movimento criaria um ciclo: %d é descendente de %d", newParentID, taskID)
+		}
+		if seen[id] {
+			return fmt.Errorf("hierarquia corrompida: ciclo existente em %d", id)
+		}
+		seen[id] = true
+		p, err := a.store.GetTask(id)
+		if err != nil {
+			return fmt.Errorf("pai %d não existe", id)
+		}
+		id = p.ParentID
+	}
+	return nil
 }
 
 func (a *App) applySidebar() (tea.Model, tea.Cmd) {
