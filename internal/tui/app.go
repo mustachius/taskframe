@@ -1,0 +1,516 @@
+// Package tui implements the Norton Commander-style terminal interface.
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/jvsaga/taskframe/internal/store"
+	"github.com/jvsaga/taskframe/internal/task"
+)
+
+func visibleWidth(s string) int { return lipgloss.Width(s) }
+
+// Modal is a dialog that captures all input while open.
+type Modal interface {
+	Update(msg tea.Msg) (Modal, tea.Cmd)
+	View(th Theme, w, h int) string
+}
+
+type focusArea int
+
+const (
+	focusSidebar focusArea = iota
+	focusList
+)
+
+const sidebarWidth = 26
+
+type App struct {
+	store *store.Store
+	th    Theme
+
+	w, h  int
+	focus focusArea
+
+	sidebar Sidebar
+	list    TaskList
+	modal   Modal
+
+	filter    task.Filter
+	search    textinput.Model
+	searching bool
+
+	status    string
+	statusErr bool
+
+	pendingDelete int64
+}
+
+func Run(s *store.Store, ascii bool) error {
+	app := newApp(s, ascii)
+	p := tea.NewProgram(app, tea.WithAltScreen())
+	_, err := p.Run()
+	return err
+}
+
+func newApp(s *store.Store, ascii bool) *App {
+	search := textinput.New()
+	search.Prompt = "Busca: "
+	search.CharLimit = 100
+	search.Width = 40
+	search.Cursor.SetMode(cursor.CursorStatic)
+	return &App{
+		store:  s,
+		th:     NewTheme(ascii),
+		focus:  focusList,
+		list:   NewTaskList(),
+		search: search,
+	}
+}
+
+func (a *App) Init() tea.Cmd {
+	return tea.Batch(a.loadTasksCmd(), a.loadProjectsCmd())
+}
+
+// --- commands (all store access happens here) ---
+
+func (a *App) loadTasksCmd() tea.Cmd {
+	f := a.filter
+	if f.Status == "" && !f.IncludeAll {
+		f.HideWaiting = true
+	}
+	return func() tea.Msg {
+		tasks, err := a.store.List(f)
+		if err != nil {
+			return errMsg{err}
+		}
+		return tasksLoadedMsg{tasks}
+	}
+}
+
+func (a *App) loadProjectsCmd() tea.Cmd {
+	return func() tea.Msg {
+		counts, err := a.store.ProjectCounts()
+		if err != nil {
+			return errMsg{err}
+		}
+		total := 0
+		for _, n := range counts {
+			total += n
+		}
+		done, _ := a.store.List(task.Filter{Status: task.StatusDone})
+		del, _ := a.store.List(task.Filter{Status: task.StatusDeleted})
+		return projectsLoadedMsg{counts: counts, total: total, done: len(done), del: len(del)}
+	}
+}
+
+func (a *App) openDetailCmd(id int64) tea.Cmd {
+	return func() tea.Msg {
+		t, err := a.store.GetTask(id)
+		if err != nil {
+			return errMsg{err}
+		}
+		notes, err := a.store.Notes(id)
+		if err != nil {
+			return errMsg{err}
+		}
+		acts, err := a.store.TaskActivity(id)
+		if err != nil {
+			return errMsg{err}
+		}
+		return detailLoadedMsg{t: t, notes: notes, acts: acts}
+	}
+}
+
+func (a *App) reload() tea.Cmd {
+	return tea.Batch(a.loadTasksCmd(), a.loadProjectsCmd())
+}
+
+// --- update ---
+
+func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		a.w, a.h = msg.Width, msg.Height
+		return a, nil
+
+	case errMsg:
+		a.status, a.statusErr = msg.err.Error(), true
+		return a, nil
+
+	case statusMsg:
+		// every mutation ends in a statusMsg — refresh both panels
+		a.status, a.statusErr = string(msg), false
+		return a, a.reload()
+
+	case tasksLoadedMsg:
+		a.list.SetTasks(msg.tasks)
+		return a, nil
+
+	case projectsLoadedMsg:
+		a.sidebar.SetCounts(msg.counts, msg.total, msg.done, msg.del)
+		return a, nil
+
+	case detailLoadedMsg:
+		a.modal = NewDetail(msg.t, msg.notes, msg.acts)
+		return a, nil
+
+	case formSubmittedMsg:
+		a.modal = nil
+		t := msg.t
+		return a, func() tea.Msg {
+			var err error
+			var what string
+			if msg.edit {
+				err = a.store.UpdateTask(&t)
+				what = fmt.Sprintf("tarefa %d atualizada", t.ID)
+			} else {
+				err = a.store.AddTask(&t)
+				what = fmt.Sprintf("tarefa %d criada", t.ID)
+			}
+			if err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(what)
+		}
+
+	case noteSubmittedMsg:
+		a.modal = nil
+		return a, func() tea.Msg {
+			if _, err := a.store.AddNote(msg.taskID, msg.body); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(fmt.Sprintf("nota adicionada à tarefa %d", msg.taskID))
+		}
+
+	case confirmResultMsg:
+		a.modal = nil
+		id := a.pendingDelete
+		a.pendingDelete = 0
+		if !msg.ok || id == 0 {
+			return a, nil
+		}
+		return a, func() tea.Msg {
+			if err := a.store.DeleteTask(id); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(fmt.Sprintf("tarefa %d deletada (u desfaz)", id))
+		}
+
+	case modalCancelMsg:
+		a.modal = nil
+		return a, nil
+	}
+
+	if a.modal != nil {
+		var cmd tea.Cmd
+		a.modal, cmd = a.modal.Update(msg)
+		return a, cmd
+	}
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		return a.handleKey(keyMsg)
+	}
+	return a, nil
+}
+
+func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+
+	if a.searching {
+		switch key {
+		case "enter":
+			a.searching = false
+			a.filter.Text = strings.TrimSpace(a.search.Value())
+			return a, a.loadTasksCmd()
+		case "esc":
+			a.searching = false
+			a.search.SetValue("")
+			a.filter.Text = ""
+			return a, a.loadTasksCmd()
+		}
+		var cmd tea.Cmd
+		a.search, cmd = a.search.Update(msg)
+		return a, cmd
+	}
+
+	switch key {
+	case "ctrl+c", "q", "f10":
+		return a, tea.Quit
+
+	case "f1", "?":
+		a.modal = &Help{}
+		return a, nil
+
+	case "tab":
+		if a.focus == focusSidebar {
+			a.focus = focusList
+		} else {
+			a.focus = focusSidebar
+		}
+		return a, nil
+
+	case "up", "k":
+		if a.focus == focusSidebar {
+			a.sidebar.Move(-1)
+			return a.applySidebar()
+		}
+		a.list.Move(-1)
+		return a, nil
+
+	case "down", "j":
+		if a.focus == focusSidebar {
+			a.sidebar.Move(1)
+			return a.applySidebar()
+		}
+		a.list.Move(1)
+		return a, nil
+
+	case "pgup":
+		a.list.Move(-10)
+		return a, nil
+	case "pgdown":
+		a.list.Move(10)
+		return a, nil
+	case "home", "g":
+		a.list.Home()
+		return a, nil
+	case "end", "G":
+		a.list.End()
+		return a, nil
+
+	case "left", "h":
+		if a.focus == focusList {
+			a.list.Collapse()
+		}
+		return a, nil
+	case "right", "l":
+		if a.focus == focusList {
+			a.list.Expand()
+		}
+		return a, nil
+
+	case "enter":
+		if a.focus == focusSidebar {
+			a.focus = focusList
+			return a, nil
+		}
+		if t := a.list.CursorTask(); t != nil {
+			return a, a.openDetailCmd(t.ID)
+		}
+		return a, nil
+
+	case "f3", "v":
+		if t := a.list.CursorTask(); t != nil {
+			return a, a.openDetailCmd(t.ID)
+		}
+		return a, nil
+
+	case "f2", "a":
+		a.modal = NewForm(nil, 0, a.sidebar.CurrentProject())
+		return a, nil
+
+	case "f6", "s":
+		if t := a.list.CursorTask(); t != nil {
+			a.modal = NewForm(nil, t.ID, t.Project)
+		}
+		return a, nil
+
+	case "f4", "e":
+		if t := a.list.CursorTask(); t != nil {
+			a.modal = NewForm(t, 0, "")
+		}
+		return a, nil
+
+	case "f5", "n":
+		if t := a.list.CursorTask(); t != nil {
+			a.modal = NewNotePrompt(t.ID, t.Title)
+		}
+		return a, nil
+
+	case "f9", "d", " ":
+		return a.toggleDone()
+
+	case "f8", "x", "delete":
+		if t := a.list.CursorTask(); t != nil {
+			a.pendingDelete = t.ID
+			a.modal = NewConfirm("Deletar", fmt.Sprintf("Deletar tarefa %d — %s?", t.ID, truncRunes(t.Title, 40)))
+		}
+		return a, nil
+
+	case "f7", "/":
+		a.searching = true
+		a.search.SetValue(a.filter.Text)
+		a.search.Focus()
+		return a, nil
+
+	case "u":
+		return a, func() tea.Msg {
+			desc, err := a.store.Undo()
+			if err != nil {
+				return errMsg{err}
+			}
+			return statusMsg("desfeito: " + desc)
+		}
+
+	case "r":
+		return a, a.reload()
+	}
+	return a, nil
+}
+
+func (a *App) applySidebar() (tea.Model, tea.Cmd) {
+	f := a.sidebar.Filter()
+	f.Text = a.filter.Text
+	a.filter = f
+	return a, a.loadTasksCmd()
+}
+
+func (a *App) toggleDone() (tea.Model, tea.Cmd) {
+	t := a.list.CursorTask()
+	if t == nil {
+		return a, nil
+	}
+	id := t.ID
+	status := t.Status
+	return a, func() tea.Msg {
+		switch status {
+		case task.StatusPending:
+			next, err := a.store.CompleteTask(id)
+			if err != nil {
+				return errMsg{err}
+			}
+			if next != nil {
+				return statusMsg(fmt.Sprintf("tarefa %d concluída · recorrência criou %d (vence %s)",
+					id, next.ID, next.Due.Format("02/01")))
+			}
+			return statusMsg(fmt.Sprintf("tarefa %d concluída", id))
+		case task.StatusDone:
+			if err := a.store.ReopenTask(id); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(fmt.Sprintf("tarefa %d reaberta", id))
+		}
+		return statusMsg("tarefa deletada — use u para restaurar")
+	}
+}
+
+// --- view ---
+
+func (a *App) View() string {
+	if a.w < 60 || a.h < 12 {
+		return "Janela muito pequena para o taskframe (mín. 60x12).\nRedimensione o terminal ou pressione q para sair.\n"
+	}
+
+	panelH := a.h - 2
+	listW := a.w - sidebarWidth
+
+	if a.modal != nil {
+		content := a.modal.View(a.th, a.w, panelH)
+		bg := lipglossPlace(a.th, content, a.w, panelH)
+		return bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys, a.w)
+	}
+
+	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, panelH-2, a.focus == focusSidebar)
+	listLines := a.list.Lines(a.th, listW-2, panelH-2, a.focus == focusList)
+
+	left := drawBox(a.th, "Projetos", sbLines, sidebarWidth, panelH, a.focus == focusSidebar)
+	right := drawBox(a.th, a.sidebar.Title(), listLines, listW, panelH, a.focus == focusList)
+
+	panels := joinHorizontal(left, right)
+	return panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys, a.w)
+}
+
+func (a *App) statusLine() string {
+	if a.searching {
+		return padRow(a.th.Status.Render(" "+a.search.View()), a.w, a.th.Status)
+	}
+	style := a.th.Status
+	if a.statusErr {
+		style = a.th.StatusErr
+	}
+	info := fmt.Sprintf(" %d tarefa(s)", a.list.Count())
+	if a.filter.Text != "" {
+		info += fmt.Sprintf(" · busca: %q (F7 limpa)", a.filter.Text)
+	}
+	line := info
+	if a.status != "" {
+		line = " " + a.status + " ·" + info
+	}
+	return padRow(style.Render(truncRunes(line, a.w)), a.w, a.th.Status)
+}
+
+// joinHorizontal glues two multi-line blocks side by side.
+func joinHorizontal(left, right string) string {
+	ll := strings.Split(left, "\n")
+	rl := strings.Split(right, "\n")
+	n := len(ll)
+	if len(rl) > n {
+		n = len(rl)
+	}
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		if i < len(ll) {
+			b.WriteString(ll[i])
+		}
+		if i < len(rl) {
+			b.WriteString(rl[i])
+		}
+		if i < n-1 {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+// lipglossPlace centers a modal over a solid blue backdrop.
+func lipglossPlace(th Theme, content string, w, h int) string {
+	lines := strings.Split(content, "\n")
+	ch := len(lines)
+	cw := 0
+	for _, l := range lines {
+		if lw := visibleWidth(l); lw > cw {
+			cw = lw
+		}
+	}
+	top := (h - ch) / 2
+	if top < 0 {
+		top = 0
+	}
+	left := (w - cw) / 2
+	if left < 0 {
+		left = 0
+	}
+
+	blank := th.Bg.Render(strings.Repeat(" ", w))
+	var b strings.Builder
+	row := 0
+	for ; row < top; row++ {
+		b.WriteString(blank + "\n")
+	}
+	pad := th.Bg.Render(strings.Repeat(" ", left))
+	for _, l := range lines {
+		if row >= h {
+			break
+		}
+		rest := w - left - visibleWidth(l)
+		if rest < 0 {
+			rest = 0
+		}
+		b.WriteString(pad + l + th.Bg.Render(strings.Repeat(" ", rest)) + "\n")
+		row++
+	}
+	for ; row < h; row++ {
+		b.WriteString(blank)
+		if row < h-1 {
+			b.WriteString("\n")
+		}
+	}
+	out := b.String()
+	return strings.TrimSuffix(out, "\n")
+}
