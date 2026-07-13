@@ -335,3 +335,36 @@ func TestListExcludeTags(t *testing.T) {
 		}
 	}
 }
+
+func TestContexts(t *testing.T) {
+	s := openTest(t)
+	if name, _ := s.ActiveContext(); name != "" {
+		t.Fatalf("expected no active context, got %q", name)
+	}
+	if err := s.DefineContext("work", "pro:work +urgente"); err != nil {
+		t.Fatal(err)
+	}
+	if ctxs, _ := s.Contexts(); ctxs["work"] != "pro:work +urgente" {
+		t.Fatalf("context not saved: %v", ctxs)
+	}
+	if err := s.SetActiveContext("work"); err != nil {
+		t.Fatal(err)
+	}
+	f, name, err := s.ContextFilter(time.Now())
+	if err != nil || name != "work" {
+		t.Fatalf("ContextFilter: name=%q err=%v", name, err)
+	}
+	if f.Project != "work" || len(f.Tags) != 1 || f.Tags[0] != "urgente" {
+		t.Fatalf("context filter wrong: %+v", f)
+	}
+	// deleting the active context clears it
+	if err := s.DeleteContext("work"); err != nil {
+		t.Fatal(err)
+	}
+	if name, _ := s.ActiveContext(); name != "" {
+		t.Fatalf("delete should clear active context, got %q", name)
+	}
+	if ctxs, _ := s.Contexts(); len(ctxs) != 0 {
+		t.Fatalf("context not deleted: %v", ctxs)
+	}
+}

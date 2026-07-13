@@ -414,3 +414,32 @@ func TestAddChildUnderCursor(t *testing.T) {
 		t.Fatalf("after creating child, expected modeList, got %d", m.(model).mode)
 	}
 }
+
+func TestContextFiltersList(t *testing.T) {
+	tm, _ := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	// seed: Comprar leite (casa.mercado), Revisar relatório (trabalho), Regar plantas (casa)
+	m = run(t, m, "context define casa pro:casa")
+	m = run(t, m, "context casa")
+
+	m = run(t, m, "list")
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "Comprar leite") || !strings.Contains(frame, "Regar plantas") {
+		t.Fatalf("context casa should show casa tasks:\n%s", frame)
+	}
+	if strings.Contains(frame, "Revisar relatório") {
+		t.Fatalf("context casa should hide the trabalho task:\n%s", frame)
+	}
+	if !strings.Contains(frame, "@casa") {
+		t.Errorf("overlay title should show the active context:\n%s", frame)
+	}
+
+	m = drive(t, m, key("esc"))
+	m = run(t, m, "list nocontext")
+	if !strings.Contains(stripANSI(m.View()), "Revisar relatório") {
+		t.Fatalf("nocontext should bypass the context:\n%s", stripANSI(m.View()))
+	}
+}

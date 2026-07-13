@@ -91,6 +91,8 @@ func (m model) dispatch(line string) (tea.Model, tea.Cmd) {
 		return m, m.cmdEdit(rest)
 	case "move", "mv", "m":
 		return m, m.cmdMove(rest)
+	case "context", "ctx":
+		return m, m.cmdContext(rest)
 	case "undo", "u":
 		return m, m.cmdUndo()
 	case "purge":
@@ -215,12 +217,24 @@ func (m model) cmdSub(args []string) tea.Cmd {
 	}
 }
 
+// applyContext folds the active context into base (unless nocontext), then lets
+// the user's own tokens win. Returns the merged filter and context name.
+func (m model) applyContext(base, userF task.Filter, now time.Time) (task.Filter, string) {
+	if userF.NoContext {
+		return base.Merge(userF), ""
+	}
+	cf, name, _ := m.store.ContextFilter(now)
+	return base.Merge(cf).Merge(userF), name
+}
+
 func (m model) cmdList(args []string) tea.Cmd {
 	return func() tea.Msg {
-		_, filter, text, err := task.ParseTokens(args, time.Now())
+		now := time.Now()
+		_, userF, text, err := task.ParseTokens(args, now)
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
+		filter, ctxName := m.applyContext(task.Filter{}, userF, now)
 		filter.Text = text
 		filter.HideWaiting = !filter.IncludeAll
 		tasks, err := m.store.List(filter)
@@ -233,26 +247,32 @@ func (m model) cmdList(args []string) tea.Cmd {
 		} else if text != "" {
 			title += " · busca: " + text
 		}
+		if ctxName != "" {
+			title += " · @" + ctxName
+		}
 		return openListMsg{title: title, tasks: tasks, filter: filter}
 	}
 }
 
-// cmdReport opens the overlay for a named report, merging extra tokens the user
-// typed onto the report's base filter and applying its sort + row limit.
+// cmdReport opens the overlay for a named report, folding in the active context
+// and any extra tokens, plus the report's sort + row limit.
 func (m model) cmdReport(r task.Report, args []string) tea.Cmd {
 	return func() tea.Msg {
 		now := time.Now()
-		_, extra, text, err := task.ParseTokens(args, now)
+		_, userF, text, err := task.ParseTokens(args, now)
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
-		filter := r.Build(now).Merge(extra)
+		filter, ctxName := m.applyContext(r.Build(now), userF, now)
 		filter.Text = text
 		tasks, err := m.store.List(filter)
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
 		title := r.Name + " · " + r.Description
+		if ctxName != "" {
+			title += " · @" + ctxName
+		}
 		return openListMsg{title: title, tasks: tasks, filter: filter, sort: r.Sort, limit: r.Limit}
 	}
 }
@@ -414,6 +434,85 @@ func (m model) cmdMove(args []string) tea.Cmd {
 	}
 }
 
+// cmdContext manages named default filters (Taskwarrior contexts).
+func (m model) cmdContext(args []string) tea.Cmd {
+	return func() tea.Msg {
+		th := m.th
+		if len(args) == 0 {
+			name, _ := m.store.ActiveContext()
+			if name == "" {
+				return resultMsg{lines: []string{th.Dim.Render("  nenhum contexto ativo  (context <nome> ativa · context list mostra)")}}
+			}
+			tokens, _ := m.store.ContextTokens(name)
+			return resultMsg{lines: []string{th.Text.Render("  contexto ativo: "+name) + th.Dim.Render("  ("+tokens+")")}}
+		}
+		switch args[0] {
+		case "list", "ls":
+			ctxs, err := m.store.Contexts()
+			if err != nil {
+				return errResult(th, err.Error())
+			}
+			if len(ctxs) == 0 {
+				return resultMsg{lines: []string{th.Dim.Render("  nenhum contexto definido")}}
+			}
+			active, _ := m.store.ActiveContext()
+			names := make([]string, 0, len(ctxs))
+			for n := range ctxs {
+				names = append(names, n)
+			}
+			sort.Strings(names)
+			var lines []string
+			for _, n := range names {
+				mark := "  "
+				if n == active {
+					mark = th.Accent.Render("• ")
+				}
+				lines = append(lines, "  "+mark+th.Text.Render(ui.PadRowPlain(n, 12))+th.Dim.Render(ctxs[n]))
+			}
+			return resultMsg{lines: lines}
+		case "define", "def":
+			if len(args) < 3 {
+				return errResult(th, "uso: context define <nome> <tokens>")
+			}
+			name := args[1]
+			if _, _, _, e := task.ParseTokens(args[2:], time.Now()); e != nil {
+				return errResult(th, e.Error())
+			}
+			tokens := strings.Join(args[2:], " ")
+			if err := m.store.DefineContext(name, tokens); err != nil {
+				return errResult(th, err.Error())
+			}
+			return resultMsg{lines: []string{th.Accent.Render(fmt.Sprintf("  ✓ contexto %s: %s", name, tokens))}}
+		case "none", "off":
+			if err := m.store.SetActiveContext(""); err != nil {
+				return errResult(th, err.Error())
+			}
+			return resultMsg{lines: []string{th.Dim.Render("  contexto desativado")}}
+		case "delete", "del", "rm":
+			if len(args) < 2 {
+				return errResult(th, "uso: context delete <nome>")
+			}
+			if err := m.store.DeleteContext(args[1]); err != nil {
+				return errResult(th, err.Error())
+			}
+			return resultMsg{lines: []string{th.Dim.Render("  contexto " + args[1] + " removido")}}
+		default:
+			name := args[0]
+			ctxs, err := m.store.Contexts()
+			if err != nil {
+				return errResult(th, err.Error())
+			}
+			if _, ok := ctxs[name]; !ok {
+				return errResult(th, fmt.Sprintf("contexto %q não definido (context define %s <tokens>)", name, name))
+			}
+			if err := m.store.SetActiveContext(name); err != nil {
+				return errResult(th, err.Error())
+			}
+			return resultMsg{lines: []string{th.Accent.Render("  ✓ contexto ativo: " + name)}}
+		}
+	}
+}
+
 func (m model) cmdUndo() tea.Cmd {
 	return func() tea.Msg {
 		desc, err := m.store.Undo()
@@ -500,6 +599,7 @@ func helpLines(th ui.Theme) []string {
 		{"note <id> [texto]", "adiciona nota (sem texto abre o campo)"},
 		{"edit <id> <tokens>", "altera campos da tarefa"},
 		{"move <id> pro:x sub:N", "muda projeto/pai"},
+		{"context [nome|none|list|define …]", "filtro default salvo (nocontext ignora)"},
 		{"filtros", "+tag -tag pro:x due:x prio:H status:done all"},
 		{"undo", "desfaz a última operação"},
 		{"/theme [nome]", "tema: dark, borland, green, amber"},

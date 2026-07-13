@@ -75,6 +75,8 @@ func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text stri
 			}
 		case a == "all":
 			filter.IncludeAll = true
+		case a == "nocontext":
+			filter.NoContext = true
 		default:
 			words = append(words, a)
 		}
