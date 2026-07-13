@@ -44,8 +44,10 @@ type model struct {
 
 	// list overlay
 	listTitle  string
+	listTasks  []*task.Task // flat set backing the overlay (for tree rebuilds)
 	listRows   []olRow
 	listFilter task.Filter
+	expanded   map[int64]bool // subtask fold state; absent = expanded
 	cursor     int
 	offset     int
 
@@ -73,14 +75,15 @@ func newModel(s *store.Store, opts Options) model {
 	in.Focus()
 
 	return model{
-		store: s,
-		th:    ui.NewTheme(opts.ThemeName, opts.ASCII),
-		ascii: opts.ASCII,
-		sort:  task.NormalizeSortMode(string(opts.SortMode)),
-		w:     80,
-		h:     24,
-		mode:  modePrompt,
-		input: in,
+		store:    s,
+		th:       ui.NewTheme(opts.ThemeName, opts.ASCII),
+		ascii:    opts.ASCII,
+		sort:     task.NormalizeSortMode(string(opts.SortMode)),
+		w:        80,
+		h:        24,
+		mode:     modePrompt,
+		input:    in,
+		expanded: map[int64]bool{},
 	}
 }
 
@@ -111,14 +114,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case openListMsg:
 		m.listTitle = msg.title
-		m.listRows = flattenTree(msg.tasks, m.sort)
+		m.listTasks = msg.tasks
+		m.listRows = flattenTree(msg.tasks, m.sort, m.expanded)
 		m.listFilter = msg.filter
 		m.cursor, m.offset = 0, 0
 		m.mode = modeList
 		return m, m.echoOnly()
 
 	case listRefreshMsg:
-		m.listRows = flattenTree(msg.tasks, m.sort)
+		m.listTasks = msg.tasks
+		m.listRows = flattenTree(msg.tasks, m.sort, m.expanded)
 		if m.cursor >= len(m.listRows) {
 			m.cursor = len(m.listRows) - 1
 		}
@@ -142,7 +147,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case detailLoadedMsg:
 		m.detail = msg.t
-		m.detailLines = detailBlock(m.th, msg.t, msg.notes, msg.acts, m.w-6)
+		m.detailLines = detailBlock(m.th, msg.t, msg.parent, msg.children, msg.notes, msg.acts, m.w-6)
 		m.detailScroll = 0
 		m.mode = modeDetail
 		return m, nil
@@ -267,6 +272,23 @@ func (m *model) emit(lines ...string) tea.Cmd {
 	joined := strings.Join(block, "\n")
 	m.transcript = append(m.transcript, joined)
 	return tea.Println(joined)
+}
+
+// rebuildList re-flattens the overlay tree after a fold change, keeping the
+// cursor on the same task when it is still visible.
+func (m *model) rebuildList() {
+	var id int64
+	if t := m.cursorTask(); t != nil {
+		id = t.ID
+	}
+	m.listRows = flattenTree(m.listTasks, m.sort, m.expanded)
+	m.cursor = 0
+	for i, r := range m.listRows {
+		if r.t.ID == id {
+			m.cursor = i
+			break
+		}
+	}
 }
 
 // echoOnly prints just the typed command (used when the result is an overlay).

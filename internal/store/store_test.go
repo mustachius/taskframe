@@ -271,3 +271,43 @@ func TestUpdateLogsFieldChanges(t *testing.T) {
 		t.Fatalf("undo did not revert: %+v", got)
 	}
 }
+
+func TestChildren(t *testing.T) {
+	s := openTest(t)
+	parent := &task.Task{Title: "pai"}
+	if err := s.AddTask(parent); err != nil {
+		t.Fatalf("add parent: %v", err)
+	}
+	kids := []*task.Task{
+		{Title: "filho A", ParentID: parent.ID},
+		{Title: "filho B", ParentID: parent.ID},
+		{Title: "filho deletado", ParentID: parent.ID},
+	}
+	for _, k := range kids {
+		if err := s.AddTask(k); err != nil {
+			t.Fatalf("add child: %v", err)
+		}
+	}
+	// an unrelated top-level task must not show up as a child
+	if err := s.AddTask(&task.Task{Title: "avulsa"}); err != nil {
+		t.Fatalf("add stray: %v", err)
+	}
+	// soft-deleted children are excluded
+	if err := s.DeleteTask(kids[2].ID); err != nil {
+		t.Fatalf("delete child: %v", err)
+	}
+
+	got, err := s.Children(parent.ID)
+	if err != nil {
+		t.Fatalf("children: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 non-deleted direct children, got %d: %+v", len(got), got)
+	}
+	if got[0].Title != "filho A" || got[1].Title != "filho B" {
+		t.Fatalf("children not ordered by id: %+v", got)
+	}
+	if n, _ := s.Children(kids[0].ID); len(n) != 0 {
+		t.Fatalf("leaf task should have no children, got %d", len(n))
+	}
+}

@@ -39,9 +39,11 @@ type openNoteMsg struct {
 }
 
 type detailLoadedMsg struct {
-	t     *task.Task
-	notes []task.Note
-	acts  []task.Activity
+	t        *task.Task
+	parent   *task.Task
+	children []*task.Task
+	notes    []task.Note
+	acts     []task.Activity
 }
 
 type errMsg struct{ err error }
@@ -73,6 +75,8 @@ func (m model) dispatch(line string) (tea.Model, tea.Cmd) {
 	switch verb {
 	case "add", "a":
 		return m, m.cmdAdd(rest)
+	case "sub":
+		return m, m.cmdSub(rest)
 	case "list", "ls", "l":
 		return m, m.cmdList(rest)
 	case "done", "d":
@@ -149,7 +153,7 @@ func (m model) dispatchSlash(line string) (tea.Model, tea.Cmd) {
 func (m model) cmdAdd(args []string) tea.Cmd {
 	return func() tea.Msg {
 		if len(args) == 0 {
-			return errResult(m.th, "uso: add <título> [pro:x +tag due:x prio:H]")
+			return errResult(m.th, "uso: add <título> [pro:x +tag due:x prio:H sub:N]")
 		}
 		t, _, title, err := task.ParseTokens(args, time.Now())
 		if err != nil {
@@ -159,10 +163,50 @@ func (m model) cmdAdd(args []string) tea.Cmd {
 			return errResult(m.th, "título vazio")
 		}
 		t.Title = title
+		if t.ParentID != 0 {
+			p, perr := m.store.GetTask(t.ParentID)
+			if perr != nil || p.Status == task.StatusDeleted {
+				return errResult(m.th, fmt.Sprintf("pai %d não existe", t.ParentID))
+			}
+		}
 		if err := m.store.AddTask(&t); err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d criada: %s", t.ID, t.Title))}, reload: true}
+		msg := fmt.Sprintf("  ✓ tarefa %d criada: %s", t.ID, t.Title)
+		if t.ParentID != 0 {
+			msg = fmt.Sprintf("  ✓ tarefa %d criada sob %d: %s", t.ID, t.ParentID, t.Title)
+		}
+		return resultMsg{lines: []string{m.th.Accent.Render(msg)}, reload: true}
+	}
+}
+
+// cmdSub creates a task already parented under <pai>: sub <pai> <título> [tokens].
+func (m model) cmdSub(args []string) tea.Cmd {
+	return func() tea.Msg {
+		if len(args) < 2 {
+			return errResult(m.th, "uso: sub <pai> <título> [pro:x +tag due:x prio:H]")
+		}
+		pid, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			return errResult(m.th, "id do pai inválido: "+args[0])
+		}
+		p, perr := m.store.GetTask(pid)
+		if perr != nil || p.Status == task.StatusDeleted {
+			return errResult(m.th, fmt.Sprintf("pai %d não existe", pid))
+		}
+		t, _, title, err := task.ParseTokens(args[1:], time.Now())
+		if err != nil {
+			return errResult(m.th, err.Error())
+		}
+		if title == "" {
+			return errResult(m.th, "título vazio")
+		}
+		t.Title = title
+		t.ParentID = pid
+		if err := m.store.AddTask(&t); err != nil {
+			return errResult(m.th, err.Error())
+		}
+		return resultMsg{lines: []string{m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d criada sob %d: %s", t.ID, pid, t.Title))}, reload: true}
 	}
 }
 
@@ -438,7 +482,8 @@ func sortedBoolKeys(m map[string]bool) []string {
 func helpLines(th ui.Theme) []string {
 	rows := [][2]string{
 		{"add <título> [tokens]", "cria tarefa (pro:x +tag due:sex prio:H wait:3d recur:weekly sub:N)"},
-		{"list [tokens]", "abre a lista navegável (setas, enter abre, esc fecha)"},
+		{"sub <pai> <título>", "cria subtarefa sob <pai>"},
+		{"list [tokens]", "abre a lista navegável (setas, ←→ recolhe, enter abre)"},
 		{"done <id…>", "conclui tarefa(s)"},
 		{"del <id…>", "deleta (undo desfaz)"},
 		{"note <id> [texto]", "adiciona nota (sem texto abre o campo)"},

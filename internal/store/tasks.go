@@ -242,6 +242,34 @@ func (s *Store) GetTask(id int64) (*task.Task, error) {
 	return t, nil
 }
 
+// Children returns the direct, non-deleted children of a task, ordered by id.
+// Used by the detail view to show a task's subtasks and their progress.
+func (s *Store) Children(parentID int64) ([]*task.Task, error) {
+	rows, err := s.db.Query(`SELECT id, parent_id, title, project, priority, status,
+		due, wait, scheduled, recur, created_at, modified_at, completed_at
+		FROM tasks WHERE parent_id=? AND status != 'deleted' ORDER BY id`, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []*task.Task
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.attachTags(tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
 // List returns tasks matching the filter, flat (Children not linked).
 func (s *Store) List(f task.Filter) ([]*task.Task, error) {
 	var where []string
