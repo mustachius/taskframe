@@ -76,7 +76,7 @@ uso:
   taskframe redo                refaz o último undo
   taskframe purge               remove definitivamente tarefas deletadas
   taskframe export              backup JSON completo no stdout
-  taskframe import <arquivo>    restaura backup (apenas em banco vazio)
+  taskframe import [--replace] <arquivo>   restaura backup (--replace sobrescreve)
 
 reports (aceitam tokens extras, ex: taskframe next pro:work):
   next            pendências mais urgentes (top 15)
@@ -400,10 +400,20 @@ func cmdExport(s *store.Store) error {
 }
 
 func cmdImport(s *store.Store, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("uso: taskframe import <arquivo.json>")
+	replace := false
+	var file string
+	for _, a := range args {
+		switch a {
+		case "--replace", "-r":
+			replace = true
+		default:
+			file = a
+		}
 	}
-	data, err := os.ReadFile(args[0])
+	if file == "" {
+		return fmt.Errorf("uso: taskframe import [--replace] <arquivo.json>")
+	}
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -411,11 +421,15 @@ func cmdImport(s *store.Store, args []string) error {
 	if err := json.Unmarshal(data, &d); err != nil {
 		return fmt.Errorf("json inválido: %w", err)
 	}
-	if err := s.Import(&d); err != nil {
+	if err := s.Import(&d, replace); err != nil {
 		return err
 	}
-	fmt.Printf("importado: %d tarefa(s), %d nota(s), %d registro(s) de histórico\n",
-		len(d.Tasks), len(d.Notes), len(d.Activity))
+	verb := "importado"
+	if replace {
+		verb = "substituído"
+	}
+	fmt.Printf("%s: %d tarefa(s), %d nota(s), %d registro(s) de histórico\n",
+		verb, len(d.Tasks), len(d.Notes), len(d.Activity))
 	return nil
 }
 
