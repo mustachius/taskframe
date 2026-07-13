@@ -93,6 +93,10 @@ func (m model) dispatch(line string) (tea.Model, tea.Cmd) {
 		return m, m.cmdMove(rest)
 	case "context", "ctx":
 		return m, m.cmdContext(rest)
+	case "start":
+		return m, m.cmdStartStop(rest, true)
+	case "stop":
+		return m, m.cmdStartStop(rest, false)
 	case "undo", "u":
 		return m, m.cmdUndo()
 	case "purge":
@@ -513,6 +517,35 @@ func (m model) cmdContext(args []string) tea.Cmd {
 	}
 }
 
+// cmdStartStop marks tasks active (start) or idle (stop).
+func (m model) cmdStartStop(args []string, start bool) tea.Cmd {
+	return func() tea.Msg {
+		ids, err := task.ParseIDSpec(args)
+		if err != nil {
+			return errResult(m.th, err.Error())
+		}
+		var lines []string
+		for _, id := range ids {
+			var e error
+			if start {
+				e = m.store.StartTask(id)
+			} else {
+				e = m.store.StopTask(id)
+			}
+			if e != nil {
+				lines = append(lines, m.th.StatusErr.Render("  ✗ "+e.Error()))
+				continue
+			}
+			verb := "iniciada"
+			if !start {
+				verb = "parada"
+			}
+			lines = append(lines, m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d %s", id, verb)))
+		}
+		return resultMsg{lines: lines, reload: true}
+	}
+}
+
 func (m model) cmdUndo() tea.Cmd {
 	return func() tea.Msg {
 		desc, err := m.store.Undo()
@@ -593,8 +626,9 @@ func helpLines(th ui.Theme) []string {
 		{"add <título> [tokens]", "cria tarefa (pro:x +tag due:sex prio:H wait:3d recur:weekly sub:N)"},
 		{"sub <pai> <título>", "cria subtarefa sob <pai>"},
 		{"list [tokens]", "abre a lista navegável (setas, ←→ recolhe, a add filho, enter abre)"},
-		{"next · overdue · today · week · waiting", "reports (aceitam tokens: next pro:work)"},
+		{"next · overdue · today · week · waiting · active", "reports (aceitam tokens: next pro:work)"},
 		{"done <ids>", "conclui — ids: 1  1,5  1-3"},
+		{"start/stop <ids>", "marca em andamento (urgência sobe, ▶)"},
 		{"del <ids>", "deleta (undo desfaz)"},
 		{"note <id> [texto]", "adiciona nota (sem texto abre o campo)"},
 		{"edit <id> <tokens>", "altera campos da tarefa"},

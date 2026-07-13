@@ -368,3 +368,80 @@ func TestContexts(t *testing.T) {
 		t.Fatalf("context not deleted: %v", ctxs)
 	}
 }
+
+func TestStartStop(t *testing.T) {
+	s := openTest(t)
+	tk := &task.Task{Title: "focar"}
+	if err := s.AddTask(tk); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.StartTask(tk.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.GetTask(tk.ID)
+	if got.Start == nil {
+		t.Fatal("StartTask should set start")
+	}
+
+	// active raises urgency
+	uActive := task.Urgency(got, time.Now(), false)
+	idle := *got
+	idle.Start = nil
+	if uActive <= task.Urgency(&idle, time.Now(), false) {
+		t.Fatal("active task should have higher urgency")
+	}
+
+	// active report filter
+	if act, _ := s.List(task.Filter{ActiveOnly: true}); len(act) != 1 {
+		t.Fatalf("ActiveOnly should return 1, got %d", len(act))
+	}
+
+	// undo reverts the start
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = s.GetTask(tk.ID); got.Start != nil {
+		t.Fatal("undo should clear start")
+	}
+
+	// stop clears, and its undo restores
+	if err := s.StartTask(tk.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.StopTask(tk.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = s.GetTask(tk.ID); got.Start != nil {
+		t.Fatal("StopTask should clear start")
+	}
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = s.GetTask(tk.ID); got.Start == nil {
+		t.Fatal("undo of stop should restore start")
+	}
+}
+
+func TestExportPreservesStart(t *testing.T) {
+	src := openTest(t)
+	tk := &task.Task{Title: "ativa"}
+	if err := src.AddTask(tk); err != nil {
+		t.Fatal(err)
+	}
+	if err := src.StartTask(tk.ID); err != nil {
+		t.Fatal(err)
+	}
+	dump, err := src.Export()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := openTest(t)
+	if err := dst.Import(dump); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := dst.GetTask(tk.ID)
+	if got.Start == nil {
+		t.Fatal("export/import should preserve start")
+	}
+}

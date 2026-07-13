@@ -39,10 +39,14 @@ type Task struct {
 	CreatedAt   time.Time
 	ModifiedAt  time.Time
 	CompletedAt *time.Time
+	Start       *time.Time // set while the task is active (started); nil = idle
 
 	// Children is populated when loading the task tree; never serialized.
 	Children []*Task `json:"-"`
 }
+
+// IsActive reports whether the task is currently started.
+func (t *Task) IsActive() bool { return t.Start != nil }
 
 func (t *Task) HasTag(tag string) bool {
 	for _, tg := range t.Tags {

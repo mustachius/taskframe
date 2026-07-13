@@ -11,6 +11,7 @@ type UrgencyCoefficients struct {
 	PriorityL  float64
 	TagNext    float64
 	Blocking   float64 // task has pending children
+	Active     float64 // task is started
 	AgePerDay  float64
 	AgeCap     float64
 	HasProject float64
@@ -24,6 +25,7 @@ var DefaultCoefficients = UrgencyCoefficients{
 	PriorityL:  1.8,
 	TagNext:    15.0,
 	Blocking:   2.0,
+	Active:     4.0,
 	AgePerDay:  0.02,
 	AgeCap:     2.0,
 	HasProject: 1.0,
@@ -53,6 +55,9 @@ func Urgency(t *Task, now time.Time, hasPendingChildren bool) float64 {
 	}
 	if hasPendingChildren {
 		score += c.Blocking
+	}
+	if t.IsActive() {
+		score += c.Active
 	}
 
 	age := now.Sub(t.CreatedAt).Hours() / 24 * c.AgePerDay

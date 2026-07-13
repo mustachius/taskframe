@@ -245,6 +245,9 @@ func detailBlock(th ui.Theme, t, parent *task.Task, children []*task.Task, notes
 
 	add(" " + th.TitleFocus.Render(ui.TruncRunes(t.Title, w-2)))
 	add(" " + label("status") + val(string(t.Status)))
+	if t.Start != nil {
+		add(" " + label("iniciada") + th.Accent.Render("▶ "+t.Start.Format("02/01/2006 15:04")))
+	}
 	if parent != nil {
 		add(" " + label("pai") + val(ui.TruncRunes(fmt.Sprintf("#%d %s", parent.ID, parent.Title), w-18)))
 	}

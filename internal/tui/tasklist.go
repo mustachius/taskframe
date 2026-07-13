@@ -150,6 +150,9 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 	case task.StatusDeleted:
 		mark = "[-]"
 	}
+	if t.Status == task.StatusPending && t.IsActive() {
+		mark = "[▶]"
+	}
 
 	arrow := " "
 	if r.hasKids {
