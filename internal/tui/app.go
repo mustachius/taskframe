@@ -120,8 +120,8 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 		// counts mirror what each virtual filter shows when selected
 		// (pending + waiting hidden), so numbers always match the list
 		now := time.Now()
-		eodToday := endOfDay(now)
-		eodWeek := endOfDay(now.AddDate(0, 0, 7))
+		eodToday := task.EndOfDay(now)
+		eodWeek := task.EndOfDay(now.AddDate(0, 0, 7))
 		count := func(f task.Filter) int {
 			if f.Status == "" && !f.WaitingOnly { // same rule as loadTasksCmd
 				f.HideWaiting = true

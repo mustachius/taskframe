@@ -311,3 +311,27 @@ func TestChildren(t *testing.T) {
 		t.Fatalf("leaf task should have no children, got %d", len(n))
 	}
 }
+
+func TestListExcludeTags(t *testing.T) {
+	s := openTest(t)
+	a := &task.Task{Title: "com urgente", Tags: []string{"urgente"}}
+	b := &task.Task{Title: "sem urgente", Tags: []string{"casa"}}
+	c := &task.Task{Title: "sem tags"}
+	for _, tk := range []*task.Task{a, b, c} {
+		if err := s.AddTask(tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.List(task.Filter{ExcludeTags: []string{"urgente"}})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 tasks without +urgente, got %d", len(got))
+	}
+	for _, tk := range got {
+		if tk.Title == "com urgente" {
+			t.Fatalf("excluded task leaked: %+v", tk)
+		}
+	}
+}

@@ -87,6 +87,10 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.expanded[t.ID] = true
 			m.rebuildList()
 		}
+	case "a":
+		if t := m.cursorTask(); t != nil {
+			return m.startAddChild(t), nil
+		}
 	case "enter":
 		if t := m.cursorTask(); t != nil {
 			return m, m.openDetailCmd(t.ID)
@@ -186,7 +190,7 @@ func (m model) viewList() string {
 		lines = append(lines, taskLine(m.th, r, w-2, now, i == m.cursor, m.ascii))
 	}
 	box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.listTitle, lines, w, len(lines)+2, true)
-	hint := m.th.Dim.Render("  ↑↓ move · ←→ recolhe/expande · enter abre · d conclui · x deleta · esc fecha")
+	hint := m.th.Dim.Render("  ↑↓ move · ←→ recolhe · a filho · enter abre · d conclui · x deleta · esc fecha")
 	pos := ""
 	if len(m.listRows) > 0 {
 		pos = m.th.Dim.Render(fmt.Sprintf("  %d/%d", m.cursor+1, len(m.listRows)))

@@ -291,6 +291,13 @@ func (s *Store) List(f task.Filter) ([]*task.Task, error) {
 		where = append(where, "EXISTS (SELECT 1 FROM tags g WHERE g.task_id = t.id AND g.tag = ?)")
 		args = append(args, tag)
 	}
+	for _, tag := range f.ExcludeTags {
+		where = append(where, "NOT EXISTS (SELECT 1 FROM tags g WHERE g.task_id = t.id AND g.tag = ?)")
+		args = append(args, tag)
+	}
+	if f.ActiveOnly {
+		where = append(where, "t.start IS NOT NULL")
+	}
 	if f.DueBefore != nil {
 		where = append(where, "t.due IS NOT NULL AND t.due <= ?")
 		args = append(args, fmtTime(*f.DueBefore))
