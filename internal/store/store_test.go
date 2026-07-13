@@ -445,3 +445,92 @@ func TestExportPreservesStart(t *testing.T) {
 		t.Fatal("export/import should preserve start")
 	}
 }
+
+func TestRedoCycle(t *testing.T) {
+	s := openTest(t)
+	tk := &task.Task{Title: "x", Project: "p"}
+	if err := s.AddTask(tk); err != nil {
+		t.Fatal(err)
+	}
+	// modify → undo → redo → undo → redo
+	tk.Priority = task.PriorityHigh
+	if err := s.UpdateTask(tk); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if g, _ := s.GetTask(tk.ID); g.Priority == task.PriorityHigh {
+		t.Fatal("undo should revert priority")
+	}
+	if _, err := s.Redo(); err != nil {
+		t.Fatal(err)
+	}
+	if g, _ := s.GetTask(tk.ID); g.Priority != task.PriorityHigh {
+		t.Fatal("redo should re-apply priority")
+	}
+	// after a redo, the op is undoable again
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if g, _ := s.GetTask(tk.ID); g.Priority == task.PriorityHigh {
+		t.Fatal("undo after redo should revert again")
+	}
+	// nothing left to undo beyond the create; redo re-applies the modify
+	if _, err := s.Redo(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Redo(); err == nil {
+		t.Fatal("expected nothing to redo once fully re-applied")
+	}
+}
+
+func TestRedoCreate(t *testing.T) {
+	s := openTest(t)
+	tk := &task.Task{Title: "recriar", Project: "proj", Tags: []string{"t1", "t2"}}
+	if err := s.AddTask(tk); err != nil {
+		t.Fatal(err)
+	}
+	id := tk.ID
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetTask(id); err == nil {
+		t.Fatal("undo should remove the created task")
+	}
+	if _, err := s.Redo(); err != nil {
+		t.Fatal(err)
+	}
+	g, err := s.GetTask(id)
+	if err != nil {
+		t.Fatalf("redo should recreate the task: %v", err)
+	}
+	if g.Project != "proj" || len(g.Tags) != 2 {
+		t.Fatalf("redo should restore fields and tags: %+v (tags %v)", g, g.Tags)
+	}
+}
+
+func TestRedoInvalidatedByNewOp(t *testing.T) {
+	s := openTest(t)
+	a := &task.Task{Title: "a"}
+	b := &task.Task{Title: "b"}
+	if err := s.AddTask(a); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddTask(b); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CompleteTask(a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	// a fresh forward op discards the redo stack
+	if _, err := s.CompleteTask(b.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Redo(); err == nil {
+		t.Fatal("a new op should invalidate the redo")
+	}
+}

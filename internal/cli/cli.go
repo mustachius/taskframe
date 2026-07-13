@@ -38,6 +38,8 @@ func Run(s *store.Store, args []string) error {
 		return cmdStartStop(s, rest, false)
 	case "undo":
 		return cmdUndo(s)
+	case "redo":
+		return cmdRedo(s)
 	case "purge":
 		return cmdPurge(s)
 	case "export":
@@ -71,6 +73,7 @@ uso:
   taskframe start <ids>         marca em andamento (urgência sobe)
   taskframe stop <ids>
   taskframe undo
+  taskframe redo                refaz o último undo
   taskframe purge               remove definitivamente tarefas deletadas
   taskframe export              backup JSON completo no stdout
   taskframe import <arquivo>    restaura backup (apenas em banco vazio)
@@ -374,6 +377,15 @@ func cmdUndo(s *store.Store) error {
 		return err
 	}
 	fmt.Println("desfeito:", desc)
+	return nil
+}
+
+func cmdRedo(s *store.Store) error {
+	desc, err := s.Redo()
+	if err != nil {
+		return err
+	}
+	fmt.Println("refeito:", desc)
 	return nil
 }
 

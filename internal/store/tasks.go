@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +12,33 @@ import (
 
 	"github.com/jvsaga/taskframe/internal/task"
 )
+
+// snapshotTask serializes a task (fields + tags) so a create can be replayed by
+// redo. Stored in the create activity's old_val (unused otherwise, so old logs
+// stay compatible — an empty snapshot just means "redo of create unsupported").
+func snapshotTask(t *task.Task) string {
+	b, _ := json.Marshal(t)
+	return string(b)
+}
+
+// insertFullTask inserts a task with its id and all columns preserved (used by
+// Import and by redo-of-create), then its tags.
+func insertFullTask(tx *sql.Tx, t *task.Task) error {
+	if _, err := tx.Exec(`INSERT INTO tasks
+		(id, parent_id, title, project, priority, status, due, wait, scheduled, recur, created_at, modified_at, completed_at, start)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		t.ID, nullID(t.ParentID), t.Title, t.Project, string(t.Priority), string(t.Status),
+		fmtTimePtr(t.Due), fmtTimePtr(t.Wait), fmtTimePtr(t.Scheduled), t.Recur,
+		fmtTime(t.CreatedAt), fmtTime(t.ModifiedAt), fmtTimePtr(t.CompletedAt), fmtTimePtr(t.Start)); err != nil {
+		return err
+	}
+	for _, tag := range t.Tags {
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?,?)`, t.ID, tag); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func newOpID() string {
 	b := make([]byte, 8)
@@ -50,7 +78,7 @@ func (s *Store) AddTask(t *task.Task) error {
 			return err
 		}
 	}
-	if err := logActivity(tx, opID, t.ID, now, "create", "", "", t.Title); err != nil {
+	if err := logActivity(tx, opID, t.ID, now, "create", "", snapshotTask(t), t.Title); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -155,7 +183,7 @@ func (s *Store) CompleteTask(id int64) (*task.Task, error) {
 					return nil, err
 				}
 			}
-			if err := logActivity(tx, opID, next.ID, now, "create", "", "", next.Title); err != nil {
+			if err := logActivity(tx, opID, next.ID, now, "create", "", snapshotTask(next), next.Title); err != nil {
 				return nil, err
 			}
 		}

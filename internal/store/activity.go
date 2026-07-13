@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -37,14 +38,22 @@ func (s *Store) TaskActivity(taskID int64) ([]task.Activity, error) {
 	return acts, rows.Err()
 }
 
-// Undo reverses the most recent operation that has not been undone yet.
-// Returns a human-readable description of what was undone.
+// lastMarkerExpr is the correlated subquery yielding an op's most recent
+// undo/redo marker kind (NULL if never marked). An op is "active" when this is
+// not 'undo'; it is "undone" when it equals 'undo'. Shared by Undo and Redo so
+// undo→redo→undo cycles resolve consistently.
+const lastMarkerExpr = `(SELECT kind FROM activity mk
+	WHERE mk.field = %s AND mk.kind IN ('undo','redo')
+	ORDER BY mk.id DESC LIMIT 1)`
+
+// Undo reverses the most recent operation that is currently applied (has no
+// live undo marker). Returns a human-readable description of what was undone.
 func (s *Store) Undo() (string, error) {
 	var opID string
-	err := s.db.QueryRow(`SELECT op_id FROM activity
-		WHERE kind != 'undo'
-		  AND op_id NOT IN (SELECT field FROM activity WHERE kind = 'undo')
-		ORDER BY id DESC LIMIT 1`).Scan(&opID)
+	err := s.db.QueryRow(`SELECT op_id FROM activity a
+		WHERE a.kind NOT IN ('undo','redo')
+		  AND ` + fmt.Sprintf(lastMarkerExpr, "a.op_id") + ` IS NOT 'undo'
+		ORDER BY a.id DESC LIMIT 1`).Scan(&opID)
 	if err == sql.ErrNoRows {
 		return "", fmt.Errorf("nothing to undo")
 	}
@@ -106,7 +115,7 @@ func (s *Store) Undo() (string, error) {
 			}
 			desc = fmt.Sprintf("removed note from task %d", a.taskID)
 		case "modify":
-			if err := undoModify(tx, a.taskID, a.field, a.oldVal, now); err != nil {
+			if err := setField(tx, a.taskID, a.field, a.oldVal, now); err != nil {
 				return "", err
 			}
 			desc = fmt.Sprintf("reverted %s of task %d", a.field, a.taskID)
@@ -122,22 +131,133 @@ func (s *Store) Undo() (string, error) {
 	return desc, nil
 }
 
-func undoModify(tx *sql.Tx, taskID int64, field, oldVal string, now time.Time) error {
+// Redo re-applies the most recently undone operation, as long as no newer
+// mutation happened after that undo (standard redo semantics: a new forward
+// action discards the redo stack). Returns a description of what was re-applied.
+func (s *Store) Redo() (string, error) {
+	// the op of the highest-id undo marker that is still in undone state
+	var opID string
+	var markerID int64
+	err := s.db.QueryRow(`SELECT u.id, u.field FROM activity u
+		WHERE u.kind = 'undo'
+		  AND `+fmt.Sprintf(lastMarkerExpr, "u.field")+` = 'undo'
+		ORDER BY u.id DESC LIMIT 1`).Scan(&markerID, &opID)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("nothing to redo")
+	}
+	if err != nil {
+		return "", err
+	}
+	// a mutation after the undo invalidates the redo (redo stack discarded)
+	var latestMutation sql.NullInt64
+	if err := s.db.QueryRow(`SELECT MAX(id) FROM activity WHERE kind NOT IN ('undo','redo')`).Scan(&latestMutation); err != nil {
+		return "", err
+	}
+	if latestMutation.Valid && latestMutation.Int64 > markerID {
+		return "", fmt.Errorf("nothing to redo")
+	}
+
+	// forward order: apply the op's rows oldest-first
+	rows, err := s.db.Query(`SELECT task_id, kind, field, old_val, new_val
+		FROM activity WHERE op_id=? ORDER BY id ASC`, opID)
+	if err != nil {
+		return "", err
+	}
+	type actRow struct {
+		taskID         int64
+		kind, field    string
+		oldVal, newVal string
+	}
+	var acts []actRow
+	for rows.Next() {
+		var a actRow
+		if err := rows.Scan(&a.taskID, &a.kind, &a.field, &a.oldVal, &a.newVal); err != nil {
+			rows.Close()
+			return "", err
+		}
+		acts = append(acts, a)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
+	now := time.Now()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
+	var desc string
+	for _, a := range acts {
+		switch a.kind {
+		case "create":
+			if a.oldVal == "" {
+				return "", fmt.Errorf("redo de criação não suportado (registro antigo sem snapshot)")
+			}
+			var t task.Task
+			if err := json.Unmarshal([]byte(a.oldVal), &t); err != nil {
+				return "", fmt.Errorf("snapshot inválido: %w", err)
+			}
+			if err := insertFullTask(tx, &t); err != nil {
+				return "", err
+			}
+			desc = fmt.Sprintf("recreated task %d (%s)", a.taskID, a.newVal)
+		case "done":
+			if _, err := tx.Exec(`UPDATE tasks SET status=?, completed_at=?, modified_at=? WHERE id=?`,
+				a.newVal, fmtTime(now), fmtTime(now), a.taskID); err != nil {
+				return "", err
+			}
+			desc = fmt.Sprintf("task %d re-%s", a.taskID, a.newVal)
+		case "delete":
+			if _, err := tx.Exec(`UPDATE tasks SET status=?, modified_at=? WHERE id=?`,
+				a.newVal, fmtTime(now), a.taskID); err != nil {
+				return "", err
+			}
+			desc = fmt.Sprintf("task %d re-deleted", a.taskID)
+		case "note":
+			noteID, _ := strconv.ParseInt(a.field, 10, 64)
+			if _, err := tx.Exec(`INSERT INTO notes (id, task_id, body, created_at) VALUES (?,?,?,?)`,
+				noteID, a.taskID, a.newVal, fmtTime(now)); err != nil {
+				return "", err
+			}
+			desc = fmt.Sprintf("re-added note to task %d", a.taskID)
+		case "modify":
+			if err := setField(tx, a.taskID, a.field, a.newVal, now); err != nil {
+				return "", err
+			}
+			desc = fmt.Sprintf("re-applied %s of task %d", a.field, a.taskID)
+		}
+	}
+
+	if err := logActivity(tx, newOpID(), 0, now, "redo", opID, "", ""); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return desc, nil
+}
+
+// setField writes a single scalar/tags field to the given value (used by both
+// undo, with the old value, and redo, with the new value).
+func setField(tx *sql.Tx, taskID int64, field, val string, now time.Time) error {
 	switch field {
 	case "title", "project", "priority", "status", "recur":
 		_, err := tx.Exec(`UPDATE tasks SET `+field+`=?, modified_at=? WHERE id=?`,
-			oldVal, fmtTime(now), taskID)
+			val, fmtTime(now), taskID)
 		return err
 	case "due", "wait", "scheduled", "completed_at", "start":
 		var v any
-		if oldVal != "" {
-			v = oldVal
+		if val != "" {
+			v = val
 		}
 		_, err := tx.Exec(`UPDATE tasks SET `+field+`=?, modified_at=? WHERE id=?`,
 			v, fmtTime(now), taskID)
 		return err
 	case "parent_id":
-		id, _ := strconv.ParseInt(oldVal, 10, 64)
+		id, _ := strconv.ParseInt(val, 10, 64)
 		_, err := tx.Exec(`UPDATE tasks SET parent_id=?, modified_at=? WHERE id=?`,
 			nullID(id), fmtTime(now), taskID)
 		return err
@@ -145,14 +265,14 @@ func undoModify(tx *sql.Tx, taskID int64, field, oldVal string, now time.Time) e
 		if _, err := tx.Exec(`DELETE FROM tags WHERE task_id=?`, taskID); err != nil {
 			return err
 		}
-		for _, tag := range splitTags(oldVal) {
+		for _, tag := range splitTags(val) {
 			if _, err := tx.Exec(`INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?,?)`, taskID, tag); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	return fmt.Errorf("cannot undo field %q", field)
+	return fmt.Errorf("cannot set field %q", field)
 }
 
 func splitTags(s string) []string {
