@@ -81,3 +81,21 @@ func TestNextRecurrence(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+func TestConfigureUrgency(t *testing.T) {
+	defer func() { ActiveCoefficients = DefaultCoefficients }()
+
+	ConfigureUrgency(map[string]float64{"hasProject": 50, "active": 9})
+	if ActiveCoefficients.HasProject != 50 || ActiveCoefficients.Active != 9 {
+		t.Fatalf("overrides not applied: %+v", ActiveCoefficients)
+	}
+	// unspecified coefficient keeps its default
+	if ActiveCoefficients.Due != DefaultCoefficients.Due {
+		t.Fatal("unspecified coefficient should keep default")
+	}
+	// reconfigure resets from defaults; unknown keys are ignored
+	ConfigureUrgency(map[string]float64{"nope": 1})
+	if ActiveCoefficients.HasProject != DefaultCoefficients.HasProject {
+		t.Fatal("reconfigure should reset from defaults")
+	}
+}
