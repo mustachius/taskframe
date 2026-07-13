@@ -32,6 +32,10 @@ func Run(s *store.Store, args []string) error {
 		return cmdMove(s, rest)
 	case "context", "ctx":
 		return cmdContext(s, rest)
+	case "start":
+		return cmdStartStop(s, rest, true)
+	case "stop":
+		return cmdStartStop(s, rest, false)
 	case "undo":
 		return cmdUndo(s)
 	case "purge":
@@ -64,6 +68,8 @@ uso:
   taskframe note <id> <texto>
   taskframe move <id> [pro:x] [sub:N]   muda projeto/pai (sub:0 vira raiz)
   taskframe context [<nome>|none|list|define <nome> <tokens>|delete <nome>]
+  taskframe start <ids>         marca em andamento (urgência sobe)
+  taskframe stop <ids>
   taskframe undo
   taskframe purge               remove definitivamente tarefas deletadas
   taskframe export              backup JSON completo no stdout
@@ -75,6 +81,7 @@ reports (aceitam tokens extras, ex: taskframe next pro:work):
   today           vencem até hoje
   week            próximos 7 dias
   waiting         aguardando (wait futuro)
+  active          em andamento (iniciadas)
 
 tokens (add e list):
   pro:work.api    projeto (hierarquia com pontos)
@@ -335,6 +342,30 @@ func cmdContext(s *store.Store, args []string) error {
 		fmt.Printf("contexto ativo: %s\n", name)
 		return nil
 	}
+}
+
+// cmdStartStop marks tasks active (start) or idle (stop).
+func cmdStartStop(s *store.Store, args []string, start bool) error {
+	ids, err := task.ParseIDSpec(args)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if start {
+			err = s.StartTask(id)
+		} else {
+			err = s.StopTask(id)
+		}
+		if err != nil {
+			return err
+		}
+		if start {
+			fmt.Printf("tarefa %d iniciada\n", id)
+		} else {
+			fmt.Printf("tarefa %d parada\n", id)
+		}
+	}
+	return nil
 }
 
 func cmdUndo(s *store.Store) error {

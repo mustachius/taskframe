@@ -51,6 +51,11 @@ var reports = map[string]Report{
 		Build: func(now time.Time) Filter { return Filter{WaitingOnly: true} },
 		Sort:  SortDue,
 	},
+	"active": {
+		Name: "active", Description: "em andamento (iniciadas)",
+		Build: func(now time.Time) Filter { return Filter{ActiveOnly: true} },
+		Sort:  SortUrgency,
+	},
 }
 
 // LookupReport returns the named report (case-insensitive) and whether it exists.

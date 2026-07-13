@@ -192,6 +192,61 @@ func (s *Store) ReopenTask(id int64) error {
 	return tx.Commit()
 }
 
+// StartTask marks a pending task active (records its start time). Re-starting
+// an already-active task is a no-op. Logged as a 'start' modify so undo works.
+func (s *Store) StartTask(id int64) error {
+	t, err := s.GetTask(id)
+	if err != nil {
+		return err
+	}
+	if t.Status != task.StatusPending {
+		return fmt.Errorf("task %d is not pending", id)
+	}
+	if t.Start != nil {
+		return nil
+	}
+	now := time.Now()
+	opID := newOpID()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE tasks SET start=?, modified_at=? WHERE id=?`,
+		fmtTime(now), fmtTime(now), id); err != nil {
+		return err
+	}
+	if err := logActivity(tx, opID, id, now, "modify", "start", "", fmtTime(now)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// StopTask clears a task's active state. No-op if it was not active.
+func (s *Store) StopTask(id int64) error {
+	t, err := s.GetTask(id)
+	if err != nil {
+		return err
+	}
+	if t.Start == nil {
+		return nil
+	}
+	now := time.Now()
+	opID := newOpID()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE tasks SET start=NULL, modified_at=? WHERE id=?`, fmtTime(now), id); err != nil {
+		return err
+	}
+	if err := logActivity(tx, opID, id, now, "modify", "start", timeStr(t.Start), ""); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // DeleteTask soft-deletes (status='deleted'). Undo restores it.
 func (s *Store) DeleteTask(id int64) error {
 	t, err := s.GetTask(id)
@@ -225,7 +280,7 @@ func (s *Store) Purge() (int64, error) {
 
 func (s *Store) GetTask(id int64) (*task.Task, error) {
 	row := s.db.QueryRow(`SELECT id, parent_id, title, project, priority, status,
-		due, wait, scheduled, recur, created_at, modified_at, completed_at
+		due, wait, scheduled, recur, created_at, modified_at, completed_at, start
 		FROM tasks WHERE id=?`, id)
 	t, err := scanTask(row)
 	if err == sql.ErrNoRows {
@@ -246,7 +301,7 @@ func (s *Store) GetTask(id int64) (*task.Task, error) {
 // Used by the detail view to show a task's subtasks and their progress.
 func (s *Store) Children(parentID int64) ([]*task.Task, error) {
 	rows, err := s.db.Query(`SELECT id, parent_id, title, project, priority, status,
-		due, wait, scheduled, recur, created_at, modified_at, completed_at
+		due, wait, scheduled, recur, created_at, modified_at, completed_at, start
 		FROM tasks WHERE parent_id=? AND status != 'deleted' ORDER BY id`, parentID)
 	if err != nil {
 		return nil, err
@@ -317,7 +372,7 @@ func (s *Store) List(f task.Filter) ([]*task.Task, error) {
 	}
 
 	q := `SELECT t.id, t.parent_id, t.title, t.project, t.priority, t.status,
-		t.due, t.wait, t.scheduled, t.recur, t.created_at, t.modified_at, t.completed_at
+		t.due, t.wait, t.scheduled, t.recur, t.created_at, t.modified_at, t.completed_at, t.start
 		FROM tasks t`
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ")
@@ -469,10 +524,10 @@ func scanTask(r scanner) (*task.Task, error) {
 	var t task.Task
 	var parent sql.NullInt64
 	var prio, status string
-	var due, wait, sched, completed sql.NullString
+	var due, wait, sched, completed, start sql.NullString
 	var created, modified string
 	err := r.Scan(&t.ID, &parent, &t.Title, &t.Project, &prio, &status,
-		&due, &wait, &sched, &t.Recur, &created, &modified, &completed)
+		&due, &wait, &sched, &t.Recur, &created, &modified, &completed, &start)
 	if err != nil {
 		return nil, err
 	}
@@ -485,6 +540,7 @@ func scanTask(r scanner) (*task.Task, error) {
 	t.CreatedAt = parseTime(created)
 	t.ModifiedAt = parseTime(modified)
 	t.CompletedAt = parseTimePtr(completed)
+	t.Start = parseTimePtr(start)
 	return &t, nil
 }
 

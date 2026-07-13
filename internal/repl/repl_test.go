@@ -443,3 +443,29 @@ func TestContextFiltersList(t *testing.T) {
 		t.Fatalf("nocontext should bypass the context:\n%s", stripANSI(m.View()))
 	}
 }
+
+func TestStartMarksActive(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "start 2")
+	got, _ := s.GetTask(2)
+	if got.Start == nil {
+		t.Fatal("start command should activate task 2")
+	}
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "iniciada") {
+		t.Fatalf("expected 'iniciada' echo, transcript:\n%s", txt)
+	}
+
+	// the active report shows only task 2
+	m = run(t, m, "active")
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "Revisar relatório") { // seed task 2
+		t.Fatalf("active report should list task 2:\n%s", frame)
+	}
+	if strings.Contains(frame, "Comprar leite") { // seed task 1, not active
+		t.Fatalf("active report should exclude non-active tasks:\n%s", frame)
+	}
+}

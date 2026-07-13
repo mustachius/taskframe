@@ -49,7 +49,7 @@ func renderList(tasks []*task.Task, sortMode task.SortMode, limit int) {
 	fmt.Println(strings.Repeat("-", 78))
 	for _, r := range rows {
 		fmt.Printf("%-4d %-3s %-4s %-10s %-30s %s%s\n",
-			r.t.ID, statusMark(r.t.Status), string(r.t.Priority), dueStr(r.t.Due, now),
+			r.t.ID, mark(r.t), string(r.t.Priority), dueStr(r.t.Due, now),
 			truncate(r.t.Project, 30), ui.TreePrefix(r.lastStack, false), tagsSuffix(r.t))
 	}
 	if truncated {
@@ -68,6 +68,14 @@ func statusMark(s task.Status) string {
 	default:
 		return "[ ]"
 	}
+}
+
+// mark is statusMark plus an active indicator for started pending tasks.
+func mark(t *task.Task) string {
+	if t.Status == task.StatusPending && t.IsActive() {
+		return "[>]"
+	}
+	return statusMark(t.Status)
 }
 
 func dueStr(due *time.Time, now time.Time) string {

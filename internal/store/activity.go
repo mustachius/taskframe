@@ -128,7 +128,7 @@ func undoModify(tx *sql.Tx, taskID int64, field, oldVal string, now time.Time) e
 		_, err := tx.Exec(`UPDATE tasks SET `+field+`=?, modified_at=? WHERE id=?`,
 			oldVal, fmtTime(now), taskID)
 		return err
-	case "due", "wait", "scheduled", "completed_at":
+	case "due", "wait", "scheduled", "completed_at", "start":
 		var v any
 		if oldVal != "" {
 			v = oldVal

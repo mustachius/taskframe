@@ -36,6 +36,9 @@ func taskLine(th ui.Theme, r olRow, w int, now time.Time, selected, ascii bool) 
 	case task.StatusDeleted:
 		mark = "[-]"
 	}
+	if t.Status == task.StatusPending && t.IsActive() {
+		mark = "[▶]"
+	}
 	pri := " "
 	if t.Priority != task.PriorityNone {
 		pri = string(t.Priority)
