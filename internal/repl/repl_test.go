@@ -469,3 +469,23 @@ func TestStartMarksActive(t *testing.T) {
 		t.Fatalf("active report should exclude non-active tasks:\n%s", frame)
 	}
 }
+
+func TestRedoViaCommand(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "done 1")
+	m = run(t, m, "undo")
+	if got, _ := s.GetTask(1); got.Status != task.StatusPending {
+		t.Fatal("undo should reopen task 1")
+	}
+	m = run(t, m, "redo")
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "refeito") {
+		t.Fatalf("expected 'refeito' echo, transcript:\n%s", txt)
+	}
+	if got, _ := s.GetTask(1); got.Status != task.StatusDone {
+		t.Fatal("redo should re-complete task 1")
+	}
+}

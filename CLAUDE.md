@@ -39,8 +39,8 @@ Bubble Tea **sem alt-screen**. `run.go` imprime o banner uma vez (`fmt.Print`) e
 - **Projetos não são tabela**: string pontuada (`casa.mercado`) na coluna `tasks.project`; a árvore da sidebar é derivada de `ProjectCounts()` em tempo de leitura. Filtro por projeto é prefix-match (`= ?` OR `LIKE ?.%`).
 - **Subtarefas**: adjacency list (`parent_id`), nesting arbitrário. `store.BuildTree()` monta a árvore em memória a partir da lista flat — sem CTEs recursivas.
 - **Urgency nunca é armazenada** — calculada em `task.Urgency()` na leitura, para a fórmula poder mudar sem migration. Coeficientes em `DefaultCoefficients` (urgency.go).
-- **Audit log + undo**: toda mutação grava linhas na tabela `activity` dentro da MESMA transação, agrupadas por `op_id` (hex aleatório). `store.Undo()` acha o último op não-desfeito (ops desfeitos são marcados por uma linha `kind='undo'` cujo `field` guarda o op_id revertido) e reverte linha a linha. Undo de um `done` com recorrência reverte o done E apaga a instância clonada — porque ambos compartilham o op_id. **Ao adicionar qualquer mutação nova, registre em `activity` no mesmo tx e implemente o caso reverso em `undoModify`/`Undo`.**
-- **Exceção deliberada**: a tabela `settings` (migration 2; tema, ordenação) NÃO loga em `activity` — são preferências de máquina, e o undo nunca deve reverter uma troca de tema. Settings também ficam fora do export.
+- **Audit log + undo/redo**: toda mutação grava linhas na tabela `activity` dentro da MESMA transação, agrupadas por `op_id` (hex aleatório). Undo/redo usam **marcadores**: uma linha `kind='undo'` (ou `'redo'`) cujo `field` guarda o op_id afetado. Um op está "aplicado" quando seu marcador mais recente (`lastMarkerExpr`) não é `undo`; "desfeito" quando é `undo`. `store.Undo()` reverte o op aplicado mais recente (linha a linha, `old_val`); `store.Redo()` reaplica o op desfeito mais recente (`new_val`), a menos que um op novo tenha surgido depois do undo (descarta o redo). O `create` grava um **snapshot JSON da task em `old_val`** (senão vazio → redo de create recusa); undo de create ainda é DELETE físico. Undo de um `done` com recorrência reverte o done E apaga a instância clonada (mesmo op_id). **Ao adicionar qualquer mutação nova, registre em `activity` no mesmo tx e garanta o caminho reverso (undo) e o direto (redo) — campos escalares/tags passam por `setField`.**
+- **Exceção deliberada**: a tabela `settings` (migration 2) NÃO loga em `activity` — preferências de máquina (tema, ordenação, **contexts**: `context` + `context.<nome>`); o undo nunca deve revertê-las. Settings ficam fora do export. Config de arquivo (`internal/config`, `config.json`) é uma camada separada de defaults: settings de runtime vencem o config.
 - **Export/import** (`store/export.go`): backup JSON completo com ids preservados verbatim (o log restaurado mantém o undo funcionando). Import só em banco vazio, em tx única com `PRAGMA defer_foreign_keys = ON` (após um Move, um filho pode referenciar pai com id maior).
 - **Delete é soft** (`status='deleted'`) para o undo funcionar; `purge` faz o hard-delete.
 - **Timestamps**: TEXT RFC3339 UTC (ordenável, legível no sqlite3). Helpers `fmtTime`/`parseTime` em store.go — sempre use-os.
@@ -74,12 +74,18 @@ Stdlib `flag` + switch manual — **sem cobra** (os tokens taskwarrior não são
 
 **v3** (mesma data): pivô de interface. O usuário preferiu algo estilo Claude Code, então o **REPL inline** (`internal/repl`) virou o padrão; a TUI Norton Commander virou `taskframe classic`. Fase 0 extraiu `internal/ui` (tema), `task.ParseTokens` (parser) e `store.CheckMoveCycle`, compartilhados. Novo `install.ps1` instala como comando global do usuário (PATH por-usuário, idempotente, `SetEnvironmentVariable` não `setx`).
 
-Testes: ~35 casos; `repl_test.go` cobre add/list-overlay/detail, done+undo, comando desconhecido, `/theme` persistido, histórico ↑, Tab completa projeto, nota inline. `tui/smoke_test.go` mantém a cobertura da clássica. Tudo verde; CLI e roteamento verificados com o binário real.
+**v4** (2026-07-13): aproximação do Taskwarrior, centro de gravidade no terminal por comandos (CLI+REPL sobre o mesmo núcleo; a TUI clássica é referência, não muda). Cinco frentes:
+- **Seleção/filtros/reports** (`task/idspec.go`, `task/report.go`): `ParseIDSpec` (ranges/listas `1-3,5`, substitui os `parseIDs` duplicados); token `-tag` (exclusão) e `status:`; `Filter.ExcludeTags`/`ActiveOnly`/`NoContext` + `Filter.Merge`; registry de reports nomeados `next/overdue/today/week/waiting/active` (fonte única — a sidebar da TUI deriva dele). Ergonomia: tecla `a` no overlay do REPL cria filho sob o cursor (sem digitar id).
+- **Contexts** (`store/context.go`): filtro default salvo em `settings` (`context`, `context.<nome>`); comandos `context [nome|none|list|define|delete]`; aplicado em list/reports (base ⊕ contexto ⊕ tokens do usuário, usuário vence); token `nocontext` ignora.
+- **start/stop** (coluna `start` via migration 3): `Task.Start`/`IsActive`, `StartTask`/`StopTask` (activity+undo), coeficiente de urgência `Active` (+4), report/filtro `active`, marca `[▶]`.
+- **Config `.taskrc`** (`internal/config`): `config.json` (`TASKFRAME_CONFIG` ou `%APPDATA%`), campos `theme/sort/urgency`; `task.ActiveCoefficients` + `ConfigureUrgency` (urgência configurável sem recompilar). Precedência: settings (runtime) vence config (default de arquivo).
+- **redo** (`store.Redo`): marcadores `kind='redo'` que cancelam `undo`; detecção do último op desfeito via `lastMarkerExpr` (último marcador do op); um op novo depois do undo descarta o redo (semântica padrão). `create` grava snapshot JSON em `old_val` (retrocompatível: log antigo sem snapshot recusa redo de create). `setField` aplica valor a um campo (undo usa old, redo usa new).
+
+Testes: ~55 casos; verificados com o binário real (reports, ranges, `-tag`, contexts, start/urgência/active, config muda ordenação, ciclos undo↔redo, redo de create/invalidação). Tudo verde.
 
 Ideias futuras (nada pendente do escopo aprovado):
-- contexts (filtro default salvo — a tabela settings já existe)
-- redo (undo do undo — o activity log suporta)
 - histórico do REPL persistido (hoje em memória, `repl/history.go`)
 - FTS5 para busca (só se a busca LIKE ficar lenta)
+- filtros com OR / `not:` de atributo (hoje só AND + `-tag`)
 - `edit` que limpa campos (hoje só define, não limpa — `ParseTokens` não distingue "ausente" de "vazio")
 - lembretes/notificações (fora do escopo atual)

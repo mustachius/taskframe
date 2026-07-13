@@ -59,18 +59,8 @@ func (s *Store) Import(d *Dump) error {
 	}
 
 	for _, t := range d.Tasks {
-		if _, err := tx.Exec(`INSERT INTO tasks
-			(id, parent_id, title, project, priority, status, due, wait, scheduled, recur, created_at, modified_at, completed_at, start)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			t.ID, nullID(t.ParentID), t.Title, t.Project, string(t.Priority), string(t.Status),
-			fmtTimePtr(t.Due), fmtTimePtr(t.Wait), fmtTimePtr(t.Scheduled), t.Recur,
-			fmtTime(t.CreatedAt), fmtTime(t.ModifiedAt), fmtTimePtr(t.CompletedAt), fmtTimePtr(t.Start)); err != nil {
+		if err := insertFullTask(tx, t); err != nil {
 			return fmt.Errorf("tarefa %d: %w", t.ID, err)
-		}
-		for _, tag := range t.Tags {
-			if _, err := tx.Exec(`INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?,?)`, t.ID, tag); err != nil {
-				return err
-			}
 		}
 	}
 	for _, nt := range d.Notes {

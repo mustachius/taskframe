@@ -99,6 +99,8 @@ func (m model) dispatch(line string) (tea.Model, tea.Cmd) {
 		return m, m.cmdStartStop(rest, false)
 	case "undo", "u":
 		return m, m.cmdUndo()
+	case "redo":
+		return m, m.cmdRedo()
 	case "purge":
 		return m, m.cmdPurge()
 	default:
@@ -556,6 +558,16 @@ func (m model) cmdUndo() tea.Cmd {
 	}
 }
 
+func (m model) cmdRedo() tea.Cmd {
+	return func() tea.Msg {
+		desc, err := m.store.Redo()
+		if err != nil {
+			return errResult(m.th, err.Error())
+		}
+		return resultMsg{lines: []string{m.th.Accent.Render("  ✓ refeito: " + desc)}, reload: true}
+	}
+}
+
 func (m model) cmdPurge() tea.Cmd {
 	return func() tea.Msg {
 		n, err := m.store.Purge()
@@ -635,7 +647,7 @@ func helpLines(th ui.Theme) []string {
 		{"move <id> pro:x sub:N", "muda projeto/pai"},
 		{"context [nome|none|list|define …]", "filtro default salvo (nocontext ignora)"},
 		{"filtros", "+tag -tag pro:x due:x prio:H status:done all"},
-		{"undo", "desfaz a última operação"},
+		{"undo · redo", "desfaz · refaz a última operação"},
 		{"/theme [nome]", "tema: dark, borland, green, amber"},
 		{"/sort [modo]", "ordenação: urgency, due, created"},
 		{"/clear", "limpa a tela"},
