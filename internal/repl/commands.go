@@ -28,6 +28,8 @@ type openListMsg struct {
 	title  string
 	tasks  []*task.Task
 	filter task.Filter
+	sort   task.SortMode // overlay sort override ("" = model default)
+	limit  int           // 0 = no row cap
 }
 
 // listRefreshMsg re-renders the open overlay in place (keeps cursor).
@@ -94,6 +96,9 @@ func (m model) dispatch(line string) (tea.Model, tea.Cmd) {
 	case "purge":
 		return m, m.cmdPurge()
 	default:
+		if r, ok := task.LookupReport(verb); ok {
+			return m, m.cmdReport(r, rest)
+		}
 		return m, m.emit(m.th.StatusErr.Render("✗ comando desconhecido: "+verb) +
 			m.th.Dim.Render("  (/help para a lista)"))
 	}
@@ -232,9 +237,29 @@ func (m model) cmdList(args []string) tea.Cmd {
 	}
 }
 
+// cmdReport opens the overlay for a named report, merging extra tokens the user
+// typed onto the report's base filter and applying its sort + row limit.
+func (m model) cmdReport(r task.Report, args []string) tea.Cmd {
+	return func() tea.Msg {
+		now := time.Now()
+		_, extra, text, err := task.ParseTokens(args, now)
+		if err != nil {
+			return errResult(m.th, err.Error())
+		}
+		filter := r.Build(now).Merge(extra)
+		filter.Text = text
+		tasks, err := m.store.List(filter)
+		if err != nil {
+			return errResult(m.th, err.Error())
+		}
+		title := r.Name + " · " + r.Description
+		return openListMsg{title: title, tasks: tasks, filter: filter, sort: r.Sort, limit: r.Limit}
+	}
+}
+
 func (m model) cmdDone(args []string) tea.Cmd {
 	return func() tea.Msg {
-		ids, err := parseIDs(args)
+		ids, err := task.ParseIDSpec(args)
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
@@ -256,7 +281,7 @@ func (m model) cmdDone(args []string) tea.Cmd {
 
 func (m model) cmdDel(args []string) tea.Cmd {
 	return func() tea.Msg {
-		ids, err := parseIDs(args)
+		ids, err := task.ParseIDSpec(args)
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
@@ -429,21 +454,6 @@ func errResult(th ui.Theme, msg string) resultMsg {
 	return resultMsg{lines: []string{th.StatusErr.Render("  ✗ " + msg)}}
 }
 
-func parseIDs(args []string) ([]int64, error) {
-	if len(args) == 0 {
-		return nil, fmt.Errorf("informe pelo menos um id")
-	}
-	ids := make([]int64, 0, len(args))
-	for _, a := range args {
-		id, err := strconv.ParseInt(a, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("id inválido: %s", a)
-		}
-		ids = append(ids, id)
-	}
-	return ids, nil
-}
-
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
 // buildProjectList returns every dotted project path (with prefixes) sorted.
@@ -483,12 +493,14 @@ func helpLines(th ui.Theme) []string {
 	rows := [][2]string{
 		{"add <título> [tokens]", "cria tarefa (pro:x +tag due:sex prio:H wait:3d recur:weekly sub:N)"},
 		{"sub <pai> <título>", "cria subtarefa sob <pai>"},
-		{"list [tokens]", "abre a lista navegável (setas, ←→ recolhe, enter abre)"},
-		{"done <id…>", "conclui tarefa(s)"},
-		{"del <id…>", "deleta (undo desfaz)"},
+		{"list [tokens]", "abre a lista navegável (setas, ←→ recolhe, a add filho, enter abre)"},
+		{"next · overdue · today · week · waiting", "reports (aceitam tokens: next pro:work)"},
+		{"done <ids>", "conclui — ids: 1  1,5  1-3"},
+		{"del <ids>", "deleta (undo desfaz)"},
 		{"note <id> [texto]", "adiciona nota (sem texto abre o campo)"},
 		{"edit <id> <tokens>", "altera campos da tarefa"},
 		{"move <id> pro:x sub:N", "muda projeto/pai"},
+		{"filtros", "+tag -tag pro:x due:x prio:H status:done all"},
 		{"undo", "desfaz a última operação"},
 		{"/theme [nome]", "tema: dark, borland, green, amber"},
 		{"/sort [modo]", "ordenação: urgency, due, created"},

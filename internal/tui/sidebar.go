@@ -133,8 +133,10 @@ func (s *Sidebar) Move(delta int) {
 	}
 }
 
-func endOfDay(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, t.Location())
+// report returns the base filter of a named report (shared source of truth).
+func report(name string, now time.Time) task.Filter {
+	r, _ := task.LookupReport(name)
+	return r.Build(now)
 }
 
 // Filter returns the task filter for the selected item.
@@ -147,15 +149,13 @@ func (s *Sidebar) Filter() task.Filter {
 	case sbProject:
 		return task.Filter{Project: it.value}
 	case sbToday:
-		d := endOfDay(now)
-		return task.Filter{DueBefore: &d}
+		return report("today", now)
 	case sbOverdue:
-		return task.Filter{DueBefore: &now}
+		return report("overdue", now)
 	case sbWeek:
-		d := endOfDay(now.AddDate(0, 0, 7))
-		return task.Filter{DueBefore: &d}
+		return report("week", now)
 	case sbWaiting:
-		return task.Filter{WaitingOnly: true}
+		return report("waiting", now)
 	case sbTag:
 		return task.Filter{Tags: []string{it.value}}
 	case sbDone:

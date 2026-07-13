@@ -350,3 +350,67 @@ func TestSubtaskTreeAndDetail(t *testing.T) {
 		t.Fatalf("child detail should name its parent:\n%s", frame)
 	}
 }
+
+func TestReportCommand(t *testing.T) {
+	tm, _ := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	// "overdue" is a report verb → opens the navigable overlay
+	m = run(t, m, "overdue")
+	mm := m.(model)
+	if mm.mode != modeList {
+		t.Fatalf("report should open overlay, mode=%d", mm.mode)
+	}
+	if mm.listSort != task.SortDue {
+		t.Fatalf("overdue report should sort by due, got %q", mm.listSort)
+	}
+	if !strings.Contains(stripANSI(m.View()), "overdue") {
+		t.Errorf("overlay title should name the report:\n%s", stripANSI(m.View()))
+	}
+}
+
+func TestDoneRange(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "done 1-3")
+	for _, id := range []int64{1, 2, 3} {
+		got, _ := s.GetTask(id)
+		if got.Status != task.StatusDone {
+			t.Fatalf("task %d should be done via range, got %s", id, got.Status)
+		}
+	}
+}
+
+func TestAddChildUnderCursor(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "list")
+	// cursor starts at row 0; press 'a' to add a child under it
+	parent := m.(model).cursorTask()
+	if parent == nil {
+		t.Fatal("no cursor task")
+	}
+	m = drive(t, m, key("a"))
+	if m.(model).mode != modeAddChild {
+		t.Fatalf("'a' should open add-child prompt, mode=%d", m.(model).mode)
+	}
+	m = typeText(t, m, "novo filho")
+	m = drive(t, m, key("enter"))
+
+	kids, _ := s.Children(parent.ID)
+	if len(kids) != 1 || kids[0].Title != "novo filho" {
+		t.Fatalf("child not created under cursor task %d: %+v", parent.ID, kids)
+	}
+	// back in the list overlay, refreshed
+	if m.(model).mode != modeList {
+		t.Fatalf("after creating child, expected modeList, got %d", m.(model).mode)
+	}
+}

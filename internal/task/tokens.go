@@ -5,12 +5,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // ParseTokens interprets taskwarrior-style arguments shared by the CLI and
-// the REPL: `+tag`, `pro:x`, `due:x`, `prio:H`, `wait:x`, `recur:x`, `sub:n`,
-// and the `all` list modifier. Non-token words are joined and returned as
-// free text (title for add, search text for list).
+// the REPL: `+tag`, `-tag` (exclude, list only), `pro:x`, `due:x`, `prio:H`,
+// `wait:x`, `recur:x`, `sub:n`, `status:x`, and the `all` list modifier.
+// Non-token words are joined and returned as free text (title for add, search
+// text for list).
 func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text string, err error) {
 	var words []string
 	for _, a := range args {
@@ -18,6 +20,9 @@ func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text stri
 		case strings.HasPrefix(a, "+") && len(a) > 1:
 			t.Tags = append(t.Tags, a[1:])
 			filter.Tags = append(filter.Tags, a[1:])
+		case len(a) > 1 && a[0] == '-' && isTagStart(rune(a[1])):
+			// exclusion is a filter concept only; never a task attribute
+			filter.ExcludeTags = append(filter.ExcludeTags, a[1:])
 		case strings.HasPrefix(a, "pro:"), strings.HasPrefix(a, "project:"):
 			v := a[strings.Index(a, ":")+1:]
 			t.Project = v
@@ -57,6 +62,17 @@ func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text stri
 				return
 			}
 			t.ParentID = id
+		case strings.HasPrefix(a, "status:"):
+			v := strings.ToLower(a[7:])
+			switch v {
+			case "all":
+				filter.IncludeAll = true
+			case "pending", "done", "deleted":
+				filter.Status = Status(v)
+			default:
+				err = fmt.Errorf("status inválido: %s (use pending, done, deleted, all)", v)
+				return
+			}
 		case a == "all":
 			filter.IncludeAll = true
 		default:
@@ -65,4 +81,10 @@ func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text stri
 	}
 	text = strings.Join(words, " ")
 	return
+}
+
+// isTagStart reports whether r can begin a tag name (so "-work" is an exclude
+// filter but "-5" or a lone "-" is treated as free text).
+func isTagStart(r rune) bool {
+	return unicode.IsLetter(r) || r == '_'
 }

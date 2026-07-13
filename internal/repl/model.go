@@ -24,6 +24,7 @@ const (
 	modeList
 	modeDetail
 	modeNote
+	modeAddChild
 )
 
 type model struct {
@@ -47,9 +48,16 @@ type model struct {
 	listTasks  []*task.Task // flat set backing the overlay (for tree rebuilds)
 	listRows   []olRow
 	listFilter task.Filter
+	listSort   task.SortMode  // overlay sort (report override or model default)
+	listLimit  int            // 0 = no row cap
 	expanded   map[int64]bool // subtask fold state; absent = expanded
 	cursor     int
 	offset     int
+
+	// add-child prompt (create a subtask under the cursor task)
+	addParent int64
+	addTitle  string
+	addInput  textinput.Model
 
 	// detail overlay
 	detail       *task.Task
@@ -115,21 +123,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openListMsg:
 		m.listTitle = msg.title
 		m.listTasks = msg.tasks
-		m.listRows = flattenTree(msg.tasks, m.sort, m.expanded)
 		m.listFilter = msg.filter
+		m.listSort = msg.sort
+		m.listLimit = msg.limit
 		m.cursor, m.offset = 0, 0
+		m.rebuildList()
+		m.cursor = 0
 		m.mode = modeList
 		return m, m.echoOnly()
 
 	case listRefreshMsg:
 		m.listTasks = msg.tasks
-		m.listRows = flattenTree(msg.tasks, m.sort, m.expanded)
-		if m.cursor >= len(m.listRows) {
-			m.cursor = len(m.listRows) - 1
-		}
-		if m.cursor < 0 {
-			m.cursor = 0
-		}
+		m.rebuildList()
 		return m, m.loadCachesCmd()
 
 	case openNoteMsg:
@@ -160,6 +165,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateDetail(msg)
 		case modeNote:
 			return m.updateNote(msg)
+		case modeAddChild:
+			return m.updateAddChild(msg)
 		default:
 			return m.updatePrompt(msg)
 		}
@@ -227,6 +234,54 @@ func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// startAddChild opens the inline prompt to create a subtask under t, so the
+// user never has to type the parent id.
+func (m model) startAddChild(t *task.Task) model {
+	m.addParent = t.ID
+	m.addTitle = t.Title
+	ci := textinput.New()
+	ci.Prompt = "filho› "
+	ci.CharLimit = 500
+	ci.Cursor.SetMode(cursor.CursorStatic)
+	ci.Width = max(10, m.w-10)
+	ci.Focus()
+	m.addInput = ci
+	m.expanded[t.ID] = true // reveal the new child
+	m.mode = modeAddChild
+	return m
+}
+
+func (m model) updateAddChild(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		m.mode = modeList
+		return m, nil
+	case "enter":
+		title := strings.TrimSpace(m.addInput.Value())
+		parent := m.addParent
+		m.mode = modeList
+		if title == "" {
+			return m, nil
+		}
+		filter := m.listFilter
+		s, th := m.store, m.th
+		return m, func() tea.Msg {
+			t := task.Task{Title: title, ParentID: parent}
+			if err := s.AddTask(&t); err != nil {
+				return errResult(th, err.Error())
+			}
+			tasks, err := s.List(filter)
+			if err != nil {
+				return errResult(th, err.Error())
+			}
+			return listRefreshMsg{tasks: tasks}
+		}
+	}
+	var cmd tea.Cmd
+	m.addInput, cmd = m.addInput.Update(msg)
+	return m, cmd
+}
+
 // View renders only the live region pinned at the bottom (never scrollback).
 func (m model) View() string {
 	switch m.mode {
@@ -237,6 +292,11 @@ func (m model) View() string {
 	case modeNote:
 		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), "nota · "+ui.TruncRunes(m.noteTitle, 30),
 			[]string{" " + m.noteInput.View(), m.th.Dim.Render(" enter salva · esc cancela")},
+			min(m.w, 60), 4, true)
+		return box
+	case modeAddChild:
+		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), "filho de · "+ui.TruncRunes(m.addTitle, 30),
+			[]string{" " + m.addInput.View(), m.th.Dim.Render(" enter cria · esc cancela")},
 			min(m.w, 60), 4, true)
 		return box
 	default:
@@ -275,13 +335,22 @@ func (m *model) emit(lines ...string) tea.Cmd {
 }
 
 // rebuildList re-flattens the overlay tree after a fold change, keeping the
-// cursor on the same task when it is still visible.
+// cursor on the same task when it is still visible. Honors the overlay sort
+// override and row limit set by reports.
 func (m *model) rebuildList() {
 	var id int64
 	if t := m.cursorTask(); t != nil {
 		id = t.ID
 	}
-	m.listRows = flattenTree(m.listTasks, m.sort, m.expanded)
+	sortMode := m.sort
+	if m.listSort != "" {
+		sortMode = m.listSort
+	}
+	rows := flattenTree(m.listTasks, sortMode, m.expanded)
+	if m.listLimit > 0 && len(rows) > m.listLimit {
+		rows = rows[:m.listLimit]
+	}
+	m.listRows = rows
 	m.cursor = 0
 	for i, r := range m.listRows {
 		if r.t.ID == id {

@@ -1,4 +1,5 @@
 taskframe.exe
+*.exe~
 *.db
 *.db-wal
 *.db-shm
