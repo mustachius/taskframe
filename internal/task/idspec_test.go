@@ -78,3 +78,28 @@ func TestParseTokensNegationAndStatus(t *testing.T) {
 		t.Fatal("expected error for invalid status")
 	}
 }
+
+func TestMergeTags(t *testing.T) {
+	cases := []struct {
+		existing, add, remove, want []string
+	}{
+		{[]string{"casa"}, []string{"urgente"}, nil, []string{"casa", "urgente"}},   // add keeps old
+		{[]string{"casa", "urgente"}, nil, []string{"urgente"}, []string{"casa"}},   // remove
+		{[]string{"casa"}, []string{"casa", "nova"}, nil, []string{"casa", "nova"}}, // dedup
+		{[]string{"a", "b"}, []string{"c"}, []string{"b"}, []string{"a", "c"}},      // add + remove
+		{nil, nil, []string{"x"}, nil},                                              // nothing
+	}
+	for i, c := range cases {
+		got := MergeTags(c.existing, c.add, c.remove)
+		if len(got) != len(c.want) {
+			t.Errorf("case %d: got %v, want %v", i, got, c.want)
+			continue
+		}
+		for j := range got {
+			if got[j] != c.want[j] {
+				t.Errorf("case %d: got %v, want %v", i, got, c.want)
+				break
+			}
+		}
+	}
+}

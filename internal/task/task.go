@@ -57,6 +57,31 @@ func (t *Task) HasTag(tag string) bool {
 	return false
 }
 
+// MergeTags returns existing tags plus add, minus remove — deduplicated and in
+// first-seen order. Used by edit so +tag/-tag amend the set instead of
+// overwriting it.
+func MergeTags(existing, add, remove []string) []string {
+	rm := make(map[string]bool, len(remove))
+	for _, t := range remove {
+		rm[t] = true
+	}
+	seen := make(map[string]bool, len(existing)+len(add))
+	out := make([]string, 0, len(existing)+len(add))
+	for _, t := range existing {
+		if !rm[t] && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	for _, t := range add {
+		if !rm[t] && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // IsWaiting reports whether the task is hidden until a future wait date.
 func (t *Task) IsWaiting(now time.Time) bool {
 	return t.Wait != nil && t.Wait.After(now)

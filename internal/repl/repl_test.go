@@ -489,3 +489,24 @@ func TestRedoViaCommand(t *testing.T) {
 		t.Fatal("redo should re-complete task 1")
 	}
 }
+
+func TestEditAmendsTags(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	// seed task 1 (Comprar leite) already has tag "urgente"
+	m = run(t, m, "edit 1 +casa +mercado")
+	got, _ := s.GetTask(1)
+	if !got.HasTag("urgente") || !got.HasTag("casa") || !got.HasTag("mercado") {
+		t.Fatalf("edit should add tags without dropping the old one: %v", got.Tags)
+	}
+	// -tag removes just that one
+	m = run(t, m, "edit 1 -urgente")
+	got, _ = s.GetTask(1)
+	if got.HasTag("urgente") || !got.HasTag("casa") {
+		t.Fatalf("edit -tag should remove only that tag: %v", got.Tags)
+	}
+	_ = m
+}
