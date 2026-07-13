@@ -212,7 +212,7 @@ func TestExportImportRoundtrip(t *testing.T) {
 	}
 
 	dst := openTest(t)
-	if err := dst.Import(d); err != nil {
+	if err := dst.Import(d, false); err != nil {
 		t.Fatalf("import: %v", err)
 	}
 	d2, err := dst.Export()
@@ -237,8 +237,15 @@ func TestExportImportRoundtrip(t *testing.T) {
 	}
 
 	// import into a non-empty db must fail
-	if err := dst.Import(d); err == nil {
+	if err := dst.Import(d, false); err == nil {
 		t.Fatal("import into non-empty db must fail")
+	}
+	// ...unless replace=true, which wipes and restores (the git-sync flow)
+	if err := dst.Import(d, true); err != nil {
+		t.Fatalf("import --replace into non-empty db: %v", err)
+	}
+	if d3, _ := dst.Export(); len(d3.Tasks) != len(d.Tasks) {
+		t.Fatalf("replace should restore exactly: %d vs %d tasks", len(d3.Tasks), len(d.Tasks))
 	}
 }
 
@@ -437,7 +444,7 @@ func TestExportPreservesStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	dst := openTest(t)
-	if err := dst.Import(dump); err != nil {
+	if err := dst.Import(dump, false); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := dst.GetTask(tk.ID)

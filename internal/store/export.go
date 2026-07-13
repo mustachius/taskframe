@@ -31,19 +31,23 @@ func (s *Store) Export() (*Dump, error) {
 	return &Dump{Tasks: tasks, Notes: notes, Activity: acts}, nil
 }
 
-// Import restores a dump into an EMPTY database, preserving all ids so
-// parent links, note refs and the undo log keep working. No new activity
-// rows are written — the restored log is the log.
-func (s *Store) Import(d *Dump) error {
-	var n int
-	err := s.db.QueryRow(`SELECT (SELECT COUNT(*) FROM tasks)
-		+ (SELECT COUNT(*) FROM notes)
-		+ (SELECT COUNT(*) FROM activity)`).Scan(&n)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		return fmt.Errorf("o banco de destino não está vazio (%d registros) — importe em um banco novo", n)
+// Import restores a dump into the database, preserving all ids so parent links,
+// note refs and the undo log keep working. No new activity rows are written —
+// the restored log is the log. By default the target must be EMPTY; with
+// replace=true the existing tasks/notes/activity are wiped first (used by the
+// git-sync flow: pull a fresh export and overwrite the local copy).
+func (s *Store) Import(d *Dump, replace bool) error {
+	if !replace {
+		var n int
+		err := s.db.QueryRow(`SELECT (SELECT COUNT(*) FROM tasks)
+			+ (SELECT COUNT(*) FROM notes)
+			+ (SELECT COUNT(*) FROM activity)`).Scan(&n)
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return fmt.Errorf("o banco de destino não está vazio (%d registros) — use import --replace para sobrescrever", n)
+		}
 	}
 
 	tx, err := s.db.Begin()
@@ -56,6 +60,14 @@ func (s *Store) Import(d *Dump) error {
 	// with a higher id, so FK checks must wait until commit
 	if _, err := tx.Exec(`PRAGMA defer_foreign_keys = ON`); err != nil {
 		return err
+	}
+
+	if replace {
+		for _, table := range []string{"activity", "notes", "tags", "tasks"} {
+			if _, err := tx.Exec(`DELETE FROM ` + table); err != nil {
+				return err
+			}
+		}
 	}
 
 	for _, t := range d.Tasks {
