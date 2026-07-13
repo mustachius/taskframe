@@ -1,6 +1,9 @@
 package task
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // UrgencyCoefficients holds the weights of the urgency formula.
 // Hardcoded for now; may become configurable later.
@@ -32,11 +35,50 @@ var DefaultCoefficients = UrgencyCoefficients{
 	Waiting:    -3.0,
 }
 
+// ActiveCoefficients are the coefficients Urgency actually uses. Defaults to
+// DefaultCoefficients; ConfigureUrgency overrides it once at startup from the
+// config file. Set-once at boot, so no locking is needed for the reads.
+var ActiveCoefficients = DefaultCoefficients
+
+// ConfigureUrgency applies named overrides (case-insensitive field names) onto
+// a fresh copy of the defaults and installs it as ActiveCoefficients. Unknown
+// keys are ignored; unspecified fields keep their default.
+func ConfigureUrgency(overrides map[string]float64) {
+	c := DefaultCoefficients
+	for k, v := range overrides {
+		switch strings.ToLower(k) {
+		case "due":
+			c.Due = v
+		case "priorityh":
+			c.PriorityH = v
+		case "prioritym":
+			c.PriorityM = v
+		case "priorityl":
+			c.PriorityL = v
+		case "tagnext":
+			c.TagNext = v
+		case "blocking":
+			c.Blocking = v
+		case "active":
+			c.Active = v
+		case "ageperday":
+			c.AgePerDay = v
+		case "agecap":
+			c.AgeCap = v
+		case "hasproject":
+			c.HasProject = v
+		case "waiting":
+			c.Waiting = v
+		}
+	}
+	ActiveCoefficients = c
+}
+
 // Urgency computes the sort score for a task at a given moment.
 // hasPendingChildren must be supplied by the caller (the domain type may
 // not have Children loaded).
 func Urgency(t *Task, now time.Time, hasPendingChildren bool) float64 {
-	c := DefaultCoefficients
+	c := ActiveCoefficients
 	score := 0.0
 
 	score += c.Due * dueFactor(t.Due, now)

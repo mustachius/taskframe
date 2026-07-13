@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/jvsaga/taskframe/internal/cli"
+	"github.com/jvsaga/taskframe/internal/config"
 	"github.com/jvsaga/taskframe/internal/repl"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
@@ -24,6 +25,13 @@ func main() {
 		fatal(fmt.Errorf("tema inválido: %q (opções: dark, borland, green, amber)", *theme))
 	}
 
+	cfg, err := config.Load()
+	if err != nil {
+		fatal(err)
+	}
+	// urgency coefficients live only in the config file: apply once at boot
+	task.ConfigureUrgency(cfg.Urgency)
+
 	path := *dbPath
 	if path == "" {
 		var err error
@@ -38,7 +46,7 @@ func main() {
 	}
 	defer s.Close()
 
-	opts := resolveOptions(s, *theme, *ascii)
+	opts := resolveOptions(s, cfg, *theme, *ascii)
 
 	args := fs.Args()
 	switch {
@@ -67,9 +75,12 @@ type commonOptions struct {
 	SortMode  task.SortMode
 }
 
-// resolveOptions applies the precedence: --theme flag > TASKFRAME_THEME env
-// > settings table > default. Invalid env/setting values fall back silently.
-func resolveOptions(s *store.Store, themeFlag string, ascii bool) commonOptions {
+// resolveOptions applies precedence for theme and sort. Runtime settings (what
+// /theme and /sort write) win over the config file so a runtime choice is not
+// clobbered on next launch; the config file only supplies the default below
+// them. Theme: --theme flag > TASKFRAME_THEME env > settings > config > default.
+// Sort: settings > config > default. Invalid values fall back silently.
+func resolveOptions(s *store.Store, cfg config.Config, themeFlag string, ascii bool) commonOptions {
 	name := themeFlag
 	if name == "" {
 		name = os.Getenv("TASKFRAME_THEME")
@@ -77,7 +88,13 @@ func resolveOptions(s *store.Store, themeFlag string, ascii bool) commonOptions 
 	if name == "" {
 		name, _ = s.GetSetting("theme")
 	}
+	if name == "" {
+		name = cfg.Theme
+	}
 	sortMode, _ := s.GetSetting("sort")
+	if sortMode == "" {
+		sortMode = cfg.Sort
+	}
 	return commonOptions{
 		ThemeName: ui.NormalizeTheme(name),
 		ASCII:     ascii,
