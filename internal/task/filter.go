@@ -14,6 +14,7 @@ type Filter struct {
 	HideWaiting bool   // hide tasks with wait date in the future
 	WaitingOnly bool   // only tasks with wait date in the future (overrides HideWaiting)
 	ActiveOnly  bool   // only started tasks (start IS NOT NULL)
+	NoContext   bool   // read-time directive: ignore the active context
 }
 
 // Merge overlays other onto f: scalar fields from other win when set, slice and
@@ -38,5 +39,6 @@ func (f Filter) Merge(other Filter) Filter {
 	f.HideWaiting = f.HideWaiting || other.HideWaiting
 	f.WaitingOnly = f.WaitingOnly || other.WaitingOnly
 	f.ActiveOnly = f.ActiveOnly || other.ActiveOnly
+	f.NoContext = f.NoContext || other.NoContext
 	return f
 }

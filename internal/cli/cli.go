@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,8 @@ func Run(s *store.Store, args []string) error {
 		return cmdNote(s, rest)
 	case "move", "mv":
 		return cmdMove(s, rest)
+	case "context", "ctx":
+		return cmdContext(s, rest)
 	case "undo":
 		return cmdUndo(s)
 	case "purge":
@@ -60,6 +63,7 @@ uso:
   taskframe del <ids>
   taskframe note <id> <texto>
   taskframe move <id> [pro:x] [sub:N]   muda projeto/pai (sub:0 vira raiz)
+  taskframe context [<nome>|none|list|define <nome> <tokens>|delete <nome>]
   taskframe undo
   taskframe purge               remove definitivamente tarefas deletadas
   taskframe export              backup JSON completo no stdout
@@ -105,34 +109,54 @@ func cmdAdd(s *store.Store, args []string) error {
 	return nil
 }
 
+// applyContext folds the active context into base (unless the user passed
+// nocontext), then lets the user's own tokens win over both. Returns the merged
+// filter and the applied context name ("" when none).
+func applyContext(s *store.Store, base, userF task.Filter, now time.Time) (task.Filter, string) {
+	if userF.NoContext {
+		return base.Merge(userF), ""
+	}
+	cf, name, _ := s.ContextFilter(now)
+	return base.Merge(cf).Merge(userF), name
+}
+
 func cmdList(s *store.Store, args []string) error {
-	_, filter, text, err := task.ParseTokens(args, time.Now())
+	now := time.Now()
+	_, userF, text, err := task.ParseTokens(args, now)
 	if err != nil {
 		return err
 	}
+	filter, ctxName := applyContext(s, task.Filter{}, userF, now)
 	filter.Text = text
 	filter.HideWaiting = !filter.IncludeAll
 	tasks, err := s.List(filter)
 	if err != nil {
 		return err
 	}
+	if ctxName != "" {
+		fmt.Printf("[contexto: %s]\n", ctxName)
+	}
 	renderList(tasks, task.SortUrgency, 0)
 	return nil
 }
 
 // cmdReport runs a named report (next, overdue, today, week, waiting), merging
-// any extra tokens the user typed onto the report's base filter.
+// the active context and any extra tokens the user typed onto the report's
+// base filter.
 func cmdReport(s *store.Store, r task.Report, args []string) error {
 	now := time.Now()
-	_, extra, text, err := task.ParseTokens(args, now)
+	_, userF, text, err := task.ParseTokens(args, now)
 	if err != nil {
 		return err
 	}
-	filter := r.Build(now).Merge(extra)
+	filter, ctxName := applyContext(s, r.Build(now), userF, now)
 	filter.Text = text
 	tasks, err := s.List(filter)
 	if err != nil {
 		return err
+	}
+	if ctxName != "" {
+		fmt.Printf("[contexto: %s]\n", ctxName)
 	}
 	renderList(tasks, r.Sort, r.Limit)
 	return nil
@@ -229,6 +253,88 @@ func cmdMove(s *store.Store, args []string) error {
 	}
 	fmt.Printf("tarefa %d movida\n", id)
 	return nil
+}
+
+// cmdContext manages named default filters (Taskwarrior contexts).
+func cmdContext(s *store.Store, args []string) error {
+	if len(args) == 0 {
+		name, _ := s.ActiveContext()
+		if name == "" {
+			fmt.Println("nenhum contexto ativo (context <nome> ativa · context list mostra)")
+			return nil
+		}
+		tokens, _ := s.ContextTokens(name)
+		fmt.Printf("contexto ativo: %s  (%s)\n", name, tokens)
+		return nil
+	}
+	switch args[0] {
+	case "list", "ls":
+		ctxs, err := s.Contexts()
+		if err != nil {
+			return err
+		}
+		if len(ctxs) == 0 {
+			fmt.Println("nenhum contexto definido")
+			return nil
+		}
+		active, _ := s.ActiveContext()
+		names := make([]string, 0, len(ctxs))
+		for n := range ctxs {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			mark := "  "
+			if n == active {
+				mark = "* "
+			}
+			fmt.Printf("%s%-12s %s\n", mark, n, ctxs[n])
+		}
+		return nil
+	case "define", "def":
+		if len(args) < 3 {
+			return fmt.Errorf("uso: taskframe context define <nome> <tokens>")
+		}
+		name := args[1]
+		if _, _, _, e := task.ParseTokens(args[2:], time.Now()); e != nil {
+			return e
+		}
+		tokens := strings.Join(args[2:], " ")
+		if err := s.DefineContext(name, tokens); err != nil {
+			return err
+		}
+		fmt.Printf("contexto %s definido: %s\n", name, tokens)
+		return nil
+	case "none", "off":
+		if err := s.SetActiveContext(""); err != nil {
+			return err
+		}
+		fmt.Println("contexto desativado")
+		return nil
+	case "delete", "del", "rm":
+		if len(args) < 2 {
+			return fmt.Errorf("uso: taskframe context delete <nome>")
+		}
+		if err := s.DeleteContext(args[1]); err != nil {
+			return err
+		}
+		fmt.Printf("contexto %s removido\n", args[1])
+		return nil
+	default:
+		name := args[0]
+		ctxs, err := s.Contexts()
+		if err != nil {
+			return err
+		}
+		if _, ok := ctxs[name]; !ok {
+			return fmt.Errorf("contexto %q não definido (context define %s <tokens>)", name, name)
+		}
+		if err := s.SetActiveContext(name); err != nil {
+			return err
+		}
+		fmt.Printf("contexto ativo: %s\n", name)
+		return nil
+	}
 }
 
 func cmdUndo(s *store.Store) error {
