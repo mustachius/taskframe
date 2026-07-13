@@ -360,7 +360,7 @@ func (m model) cmdEdit(args []string) tea.Cmd {
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
-		parsed, _, title, perr := task.ParseTokens(args[1:], time.Now())
+		parsed, pf, title, perr := task.ParseTokens(args[1:], time.Now())
 		if perr != nil {
 			return errResult(m.th, perr.Error())
 		}
@@ -383,8 +383,9 @@ func (m model) cmdEdit(args []string) tea.Cmd {
 		if parsed.Recur != "" {
 			t.Recur = parsed.Recur
 		}
-		if len(parsed.Tags) > 0 {
-			t.Tags = parsed.Tags
+		// tags amend the existing set: +tag adds, -tag removes (no overwrite)
+		if len(parsed.Tags) > 0 || len(pf.ExcludeTags) > 0 {
+			t.Tags = task.MergeTags(t.Tags, parsed.Tags, pf.ExcludeTags)
 		}
 		if err := m.store.UpdateTask(t); err != nil {
 			return errResult(m.th, err.Error())
@@ -643,7 +644,7 @@ func helpLines(th ui.Theme) []string {
 		{"start/stop <ids>", "marca em andamento (urgência sobe, ▶)"},
 		{"del <ids>", "deleta (undo desfaz)"},
 		{"note <id> [texto]", "adiciona nota (sem texto abre o campo)"},
-		{"edit <id> <tokens>", "altera campos da tarefa"},
+		{"edit <id> <tokens>", "altera campos (+tag adiciona, -tag remove)"},
 		{"move <id> pro:x sub:N", "muda projeto/pai"},
 		{"context [nome|none|list|define …]", "filtro default salvo (nocontext ignora)"},
 		{"filtros", "+tag -tag pro:x due:x prio:H status:done all"},
