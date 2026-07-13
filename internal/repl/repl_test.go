@@ -63,6 +63,10 @@ func key(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyUp}
 	case "down":
 		return tea.KeyMsg{Type: tea.KeyDown}
+	case "left":
+		return tea.KeyMsg{Type: tea.KeyLeft}
+	case "right":
+		return tea.KeyMsg{Type: tea.KeyRight}
 	default:
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 	}
@@ -236,5 +240,113 @@ func TestNoteInlinePrompt(t *testing.T) {
 	notes, _ := s.Notes(2)
 	if len(notes) != 1 || notes[0].Body != "lembrete importante" {
 		t.Fatalf("note not saved: %+v", notes)
+	}
+}
+
+func TestSubCommand(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "sub 1 comprar pão")
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "criada sob 1") {
+		t.Fatalf("expected 'criada sob 1' echo, transcript:\n%s", txt)
+	}
+	kids, _ := s.Children(1)
+	if len(kids) != 1 || kids[0].Title != "comprar pão" || kids[0].ParentID != 1 {
+		t.Fatalf("subtask not stored under parent: %+v", kids)
+	}
+
+	// add with a bogus parent errors instead of silently orphaning
+	m = run(t, m, "add fantasma sub:999")
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "pai 999 não existe") {
+		t.Fatalf("expected missing-parent error, transcript:\n%s", txt)
+	}
+}
+
+func TestFlattenTreeCollapse(t *testing.T) {
+	parent := &task.Task{ID: 1, Title: "pai"}
+	c1 := &task.Task{ID: 2, Title: "a", ParentID: 1}
+	c2 := &task.Task{ID: 3, Title: "b", ParentID: 1}
+	tasks := []*task.Task{parent, c1, c2}
+
+	exp := map[int64]bool{}
+	rows := flattenTree(tasks, task.SortCreated, exp)
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows when expanded, got %d", len(rows))
+	}
+	if !rows[0].hasKids || rows[0].collapsed {
+		t.Fatalf("parent should be expandable and expanded: %+v", rows[0])
+	}
+	if len(rows[0].lastStack) != 0 {
+		t.Fatalf("root should have empty lastStack (no connector), got %+v", rows[0].lastStack)
+	}
+	if len(rows[1].lastStack) != 1 || len(rows[2].lastStack) != 1 {
+		t.Fatalf("depth-1 children should carry a 1-level lastStack: %+v %+v", rows[1].lastStack, rows[2].lastStack)
+	}
+	if rows[2].lastStack[0] != true {
+		t.Fatalf("last child should be flagged last: %+v", rows[2].lastStack)
+	}
+
+	exp[1] = false // collapse the parent
+	rows = flattenTree(tasks, task.SortCreated, exp)
+	if len(rows) != 1 {
+		t.Fatalf("collapsed parent should hide children, got %d rows", len(rows))
+	}
+	if !rows[0].collapsed {
+		t.Fatal("parent row should report collapsed")
+	}
+}
+
+func TestSubtaskTreeAndDetail(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "sub 1 filho um")
+	m = run(t, m, "sub 1 filho dois")
+
+	// overlay shows children with tree connectors
+	m = run(t, m, "list")
+	frame := stripANSI(m.View())
+	hasConn := strings.Contains(frame, "├") || strings.Contains(frame, "└")
+	if !strings.Contains(frame, "filho um") || !hasConn {
+		t.Fatalf("overlay should show subtasks with connectors:\n%s", frame)
+	}
+
+	// move cursor onto the parent (task 1), then collapse/expand
+	mm := m.(model)
+	for i := 0; i < len(mm.listRows); i++ {
+		if c := mm.cursorTask(); c != nil && c.ID == 1 {
+			break
+		}
+		m = drive(t, m, key("down"))
+		mm = m.(model)
+	}
+	m = drive(t, m, key("left"))
+	if strings.Contains(stripANSI(m.View()), "filho um") {
+		t.Fatalf("collapsing parent should hide children:\n%s", stripANSI(m.View()))
+	}
+	m = drive(t, m, key("right"))
+	if !strings.Contains(stripANSI(m.View()), "filho um") {
+		t.Fatalf("expanding parent should show children again:\n%s", stripANSI(m.View()))
+	}
+
+	// parent detail lists subtasks with progress
+	mm = m.(model)
+	m = exec(t, m, mm.openDetailCmd(1))
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "subtarefas 0/2") || !strings.Contains(frame, "filho um") {
+		t.Fatalf("parent detail should show subtask progress + list:\n%s", frame)
+	}
+
+	// child detail shows its parent
+	kids, _ := s.Children(1)
+	m = exec(t, m, m.(model).openDetailCmd(kids[0].ID))
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "pai") || !strings.Contains(frame, "#1") {
+		t.Fatalf("child detail should name its parent:\n%s", frame)
 	}
 }

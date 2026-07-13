@@ -27,6 +27,8 @@ func Run(s *store.Store, args []string) error {
 		return cmdDel(s, rest)
 	case "note":
 		return cmdNote(s, rest)
+	case "move", "mv":
+		return cmdMove(s, rest)
 	case "undo":
 		return cmdUndo(s)
 	case "purge":
@@ -54,6 +56,7 @@ uso:
   taskframe done <id> [id...]
   taskframe del <id> [id...]
   taskframe note <id> <texto>
+  taskframe move <id> [pro:x] [sub:N]   muda projeto/pai (sub:0 vira raiz)
   taskframe undo
   taskframe purge               remove definitivamente tarefas deletadas
   taskframe export              backup JSON completo no stdout
@@ -165,6 +168,52 @@ func cmdNote(s *store.Store, args []string) error {
 		return err
 	}
 	fmt.Printf("nota adicionada à tarefa %d\n", id)
+	return nil
+}
+
+func cmdMove(s *store.Store, args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("uso: taskframe move <id> [pro:projeto] [sub:idPai]  (sub:0 vira raiz)")
+	}
+	id, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("id inválido: %s", args[0])
+	}
+	t, err := s.GetTask(id)
+	if err != nil {
+		return err
+	}
+	// manual parse so we can tell "provided" from "empty" (mirrors repl.cmdMove)
+	var setProject, setParent bool
+	var newParent int64
+	for _, a := range args[1:] {
+		switch {
+		case strings.HasPrefix(a, "pro:"), strings.HasPrefix(a, "project:"):
+			t.Project = a[strings.Index(a, ":")+1:]
+			setProject = true
+		case strings.HasPrefix(a, "sub:"):
+			p, perr := strconv.ParseInt(a[4:], 10, 64)
+			if perr != nil {
+				return fmt.Errorf("sub: espera um id numérico (ou 0)")
+			}
+			newParent, setParent = p, true
+		}
+	}
+	if !setProject && !setParent {
+		return fmt.Errorf("nada a mover: informe pro: e/ou sub:")
+	}
+	if setParent {
+		if newParent != 0 {
+			if err := s.CheckMoveCycle(id, newParent); err != nil {
+				return err
+			}
+		}
+		t.ParentID = newParent
+	}
+	if err := s.UpdateTask(t); err != nil {
+		return err
+	}
+	fmt.Printf("tarefa %d movida\n", id)
 	return nil
 }
 

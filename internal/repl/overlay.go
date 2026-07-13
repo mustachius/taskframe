@@ -14,23 +14,39 @@ import (
 const maxOverlayRows = 14
 
 type olRow struct {
-	t     *task.Task
-	depth int
+	t         *task.Task
+	lastStack []bool // per-level "is last sibling", for tree connectors
+	hasKids   bool
+	collapsed bool
 }
 
-// flattenTree builds indented overlay rows from a flat task list.
-func flattenTree(tasks []*task.Task, sortMode task.SortMode) []olRow {
+// flattenTree builds tree-connected overlay rows from a flat task list,
+// skipping the subtrees of collapsed nodes (expanded[id]==false).
+func flattenTree(tasks []*task.Task, sortMode task.SortMode, expanded map[int64]bool) []olRow {
 	roots := store.BuildTree(tasks, time.Now(), sortMode)
 	var rows []olRow
-	var walk func(ts []*task.Task, depth int)
-	walk = func(ts []*task.Task, depth int) {
-		for _, t := range ts {
-			rows = append(rows, olRow{t, depth})
-			walk(t.Children, depth+1)
+	var walk func(ts []*task.Task, trunk []bool, depth int)
+	walk = func(ts []*task.Task, trunk []bool, depth int) {
+		for i, t := range ts {
+			var ls []bool
+			if depth > 0 {
+				ls = append(append([]bool{}, trunk...), i == len(ts)-1)
+			}
+			hasKids := len(t.Children) > 0
+			collapsed := hasKids && !isExpanded(expanded, t.ID)
+			rows = append(rows, olRow{t: t, lastStack: ls, hasKids: hasKids, collapsed: collapsed})
+			if hasKids && !collapsed {
+				walk(t.Children, ls, depth+1)
+			}
 		}
 	}
-	walk(roots, 0)
+	walk(roots, nil, 0)
 	return rows
+}
+
+func isExpanded(expanded map[int64]bool, id int64) bool {
+	v, ok := expanded[id]
+	return !ok || v
 }
 
 func (m model) cursorTask() *task.Task {
@@ -61,6 +77,16 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = 0
 	case "end", "G":
 		m.cursor = len(m.listRows) - 1
+	case "left", "h":
+		if t := m.cursorTask(); t != nil {
+			m.expanded[t.ID] = false
+			m.rebuildList()
+		}
+	case "right", "l":
+		if t := m.cursorTask(); t != nil {
+			m.expanded[t.ID] = true
+			m.rebuildList()
+		}
 	case "enter":
 		if t := m.cursorTask(); t != nil {
 			return m, m.openDetailCmd(t.ID)
@@ -115,6 +141,16 @@ func (m model) openDetailCmd(id int64) tea.Cmd {
 		if err != nil {
 			return errResult(th, err.Error())
 		}
+		var parent *task.Task
+		if t.ParentID != 0 {
+			if p, perr := s.GetTask(t.ParentID); perr == nil {
+				parent = p
+			}
+		}
+		children, err := s.Children(id)
+		if err != nil {
+			return errResult(th, err.Error())
+		}
 		notes, err := s.Notes(id)
 		if err != nil {
 			return errResult(th, err.Error())
@@ -123,7 +159,7 @@ func (m model) openDetailCmd(id int64) tea.Cmd {
 		if err != nil {
 			return errResult(th, err.Error())
 		}
-		return detailLoadedMsg{t: t, notes: notes, acts: acts}
+		return detailLoadedMsg{t: t, parent: parent, children: children, notes: notes, acts: acts}
 	}
 }
 
@@ -147,10 +183,10 @@ func (m model) viewList() string {
 	}
 	for i := m.offset; i < len(m.listRows) && i < m.offset+h; i++ {
 		r := m.listRows[i]
-		lines = append(lines, taskLine(m.th, r.t, r.depth, w-2, now, i == m.cursor))
+		lines = append(lines, taskLine(m.th, r, w-2, now, i == m.cursor, m.ascii))
 	}
 	box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.listTitle, lines, w, len(lines)+2, true)
-	hint := m.th.Dim.Render("  ↑↓ move · enter abre · d conclui · x deleta · esc fecha")
+	hint := m.th.Dim.Render("  ↑↓ move · ←→ recolhe/expande · enter abre · d conclui · x deleta · esc fecha")
 	pos := ""
 	if len(m.listRows) > 0 {
 		pos = m.th.Dim.Render(fmt.Sprintf("  %d/%d", m.cursor+1, len(m.listRows)))
@@ -195,8 +231,9 @@ func (m model) viewDetail() string {
 	return box + "\n" + m.th.Dim.Render("  ↑↓ rola · esc volta")
 }
 
-// detailBlock formats a task's fields, notes and activity for the detail view.
-func detailBlock(th ui.Theme, t *task.Task, notes []task.Note, acts []task.Activity, w int) []string {
+// detailBlock formats a task's fields, parent, subtasks, notes and activity
+// for the detail view.
+func detailBlock(th ui.Theme, t, parent *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity, w int) []string {
 	label := func(s string) string { return th.Dim.Render(ui.PadRowPlain(s, 16)) }
 	val := func(s string) string { return th.Text.Render(s) }
 	var lines []string
@@ -204,6 +241,9 @@ func detailBlock(th ui.Theme, t *task.Task, notes []task.Note, acts []task.Activ
 
 	add(" " + th.TitleFocus.Render(ui.TruncRunes(t.Title, w-2)))
 	add(" " + label("status") + val(string(t.Status)))
+	if parent != nil {
+		add(" " + label("pai") + val(ui.TruncRunes(fmt.Sprintf("#%d %s", parent.ID, parent.Title), w-18)))
+	}
 	if t.Project != "" {
 		add(" " + label("projeto") + val(t.Project))
 	}
@@ -225,6 +265,22 @@ func detailBlock(th ui.Theme, t *task.Task, notes []task.Note, acts []task.Activ
 	add(" " + label("criada") + val(t.CreatedAt.Format("02/01/2006 15:04")))
 	if t.CompletedAt != nil {
 		add(" " + label("concluída") + val(t.CompletedAt.Format("02/01/2006 15:04")))
+	}
+	if len(children) > 0 {
+		done := 0
+		for _, c := range children {
+			if c.Status == task.StatusDone {
+				done++
+			}
+		}
+		add(" " + th.TitleFocus.Render(fmt.Sprintf("subtarefas %d/%d", done, len(children))))
+		for _, c := range children {
+			mark := "[ ]"
+			if c.Status == task.StatusDone {
+				mark = "[x]"
+			}
+			add(" " + th.Dim.Render(fmt.Sprintf("%s %d ", mark, c.ID)) + th.Text.Render(ui.TruncRunes(c.Title, w-16)))
+		}
 	}
 	if len(notes) > 0 {
 		add(" " + th.TitleFocus.Render("notas"))

@@ -2,15 +2,33 @@ package repl
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jvsaga/taskframe/internal/task"
 	"github.com/jvsaga/taskframe/internal/ui"
 )
 
-// taskLine formats one task as a single themed row for the overlay/echoes.
-func taskLine(th ui.Theme, t *task.Task, depth, w int, now time.Time, selected bool) string {
+// foldGlyph returns the expand/collapse indicator for a row with subtasks.
+func foldGlyph(r olRow, ascii bool) string {
+	if !r.hasKids {
+		return ""
+	}
+	switch {
+	case r.collapsed && ascii:
+		return "+ "
+	case r.collapsed:
+		return "▸ "
+	case ascii:
+		return "- "
+	default:
+		return "▾ "
+	}
+}
+
+// taskLine formats one task as a single themed row for the overlay/echoes,
+// with tree connectors and a fold indicator for nodes that have subtasks.
+func taskLine(th ui.Theme, r olRow, w int, now time.Time, selected, ascii bool) string {
+	t := r.t
 	mark := "[ ]"
 	switch t.Status {
 	case task.StatusDone:
@@ -26,8 +44,7 @@ func taskLine(th ui.Theme, t *task.Task, depth, w int, now time.Time, selected b
 	if t.Due != nil {
 		due = t.Due.Format("02/01")
 	}
-	indent := strings.Repeat("  ", depth)
-	title := t.Title
+	title := foldGlyph(r, ascii) + t.Title
 	for _, tag := range t.Tags {
 		title += " +" + tag
 	}
@@ -36,7 +53,7 @@ func taskLine(th ui.Theme, t *task.Task, depth, w int, now time.Time, selected b
 	}
 
 	head := fmt.Sprintf(" %4d %s %s %s  ", t.ID, mark, pri, due)
-	body := ui.TruncRunes(indent+title, w-len([]rune(head)))
+	body := ui.TruncRunes(ui.TreePrefix(r.lastStack, ascii)+title, w-len([]rune(head)))
 
 	if selected {
 		return th.Cursor.Render(ui.PadRowPlain(head+body, w))
