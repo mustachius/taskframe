@@ -212,6 +212,23 @@ func TestDetailViewportScrolls(t *testing.T) {
 	}
 }
 
+func TestDetailRendersNotesMarkdown(t *testing.T) {
+	tm, s := newTestModel(t)
+	s.AddNote(1, "nota com **exemplo** negrito")
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	m = run(t, m, "list")
+	m = drive(t, m, key("enter")) // open detail of task 1 (cursor row 0)
+	full := stripANSI(strings.Join(m.(model).detailLines, "\n"))
+	// The Notes section renders markdown, so the bold markers are consumed;
+	// this exact rendered form only appears if markdown was processed (the raw
+	// "**exemplo**" survives only in the History audit line).
+	if !strings.Contains(full, "nota com exemplo negrito") {
+		t.Fatalf("note should be markdown-rendered in the detail:\n%s", full)
+	}
+}
+
 func TestReadRendersNotesMarkdown(t *testing.T) {
 	tm, s := newTestModel(t)
 	s.AddNote(1, "waiting on **Marcos**")
