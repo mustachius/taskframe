@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/jvsaga/taskframe/internal/task"
+import "github.com/mustachius/taskframe/internal/task"
 
 type tasksLoadedMsg struct{ tasks []*task.Task }
 

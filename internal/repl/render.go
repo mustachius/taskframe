@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jvsaga/taskframe/internal/task"
-	"github.com/jvsaga/taskframe/internal/ui"
+	"github.com/mustachius/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 // foldGlyph returns the expand/collapse indicator for a row with subtasks.

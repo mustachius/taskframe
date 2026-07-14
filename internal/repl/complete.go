@@ -3,7 +3,7 @@ package repl
 import (
 	"strings"
 
-	"github.com/jvsaga/taskframe/internal/ui"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 // ThemeNamesList returns the valid theme names (for completion).

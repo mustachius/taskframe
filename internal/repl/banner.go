@@ -3,8 +3,8 @@ package repl
 import (
 	"strings"
 
-	"github.com/jvsaga/taskframe/internal/i18n"
-	"github.com/jvsaga/taskframe/internal/ui"
+	"github.com/mustachius/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 // wordmarkShadow is the "TASKFRAME" logo in the ANSI Shadow figlet style

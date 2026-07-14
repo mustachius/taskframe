@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jvsaga/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/task"
 )
 
 func openTest(t *testing.T) *Store {

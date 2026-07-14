@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jvsaga/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/task"
 )
 
 // snapshotTask serializes a task (fields + tags) so a create can be replayed by

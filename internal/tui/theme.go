@@ -2,7 +2,7 @@ package tui
 
 import (
 	"github.com/charmbracelet/lipgloss"
-	"github.com/jvsaga/taskframe/internal/ui"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 // The visual layer now lives in internal/ui, shared with the REPL. These thin

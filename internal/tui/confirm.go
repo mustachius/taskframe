@@ -2,7 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvsaga/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/i18n"
 )
 
 // Confirm is a yes/no dialog.
