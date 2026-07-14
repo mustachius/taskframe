@@ -2,10 +2,11 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 )
 
 // Help is the F1 keybinding reference.
-type Help struct{}
+type Help struct{ lang i18n.Lang }
 
 func (hp *Help) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	if _, ok := msg.(tea.KeyMsg); ok {
@@ -16,34 +17,34 @@ func (hp *Help) Update(msg tea.Msg) (Modal, tea.Cmd) {
 
 func (hp *Help) View(th Theme, w, h int) string {
 	rows := [][2]string{
-		{"Tab", "alterna entre painéis"},
-		{"↑↓ / jk", "move o cursor"},
-		{"←→ / hl", "recolhe / expande subtarefas"},
-		{"Enter, F3", "ver detalhes (notas + histórico)"},
-		{"F2, a", "nova tarefa"},
-		{"s", "nova subtarefa sob o cursor"},
-		{"F4, e", "editar tarefa"},
-		{"F5, n", "adicionar nota"},
-		{"F6, m", "mover (projeto / pai)"},
-		{"F9, d, Espaço", "concluir / reabrir tarefa"},
-		{"F8, x, Del", "deletar (com confirmação)"},
-		{"F7, /", "buscar por texto"},
-		{"o", "alternar ordenação (urgência/vencimento/criação)"},
-		{"t", "alternar tema (dark/borland/green/amber)"},
-		{"u", "desfazer última operação"},
-		{"r", "recarregar"},
-		{"F10, q", "sair"},
+		{"Tab", hp.lang.T("tuihelp.tab.v")},
+		{"↑↓ / jk", hp.lang.T("tuihelp.move.v")},
+		{"←→ / hl", hp.lang.T("tuihelp.fold.v")},
+		{"Enter, F3", hp.lang.T("tuihelp.detail.v")},
+		{"F2, a", hp.lang.T("tuihelp.new.v")},
+		{"s", hp.lang.T("tuihelp.newsub.v")},
+		{"F4, e", hp.lang.T("tuihelp.edit.v")},
+		{"F5, n", hp.lang.T("tuihelp.note.v")},
+		{"F6, m", hp.lang.T("tuihelp.movedlg.v")},
+		{"F9, d, Espaço", hp.lang.T("tuihelp.done.v")},
+		{"F8, x, Del", hp.lang.T("tuihelp.del.v")},
+		{"F7, /", hp.lang.T("tuihelp.search.v")},
+		{"o", hp.lang.T("tuihelp.sort.v")},
+		{"t", hp.lang.T("tuihelp.theme.v")},
+		{"u", hp.lang.T("tuihelp.undo.v")},
+		{"r", hp.lang.T("tuihelp.reload.v")},
+		{"F10, q", hp.lang.T("tuihelp.quit.v")},
 	}
 	var lines []string
 	lines = append(lines, "")
 	for _, r := range rows {
 		lines = append(lines, " "+th.TitleFocus.Render(padRowPlain(r[0], 16))+th.Text.Render(r[1]))
 	}
-	lines = append(lines, "", " "+th.Dim.Render("CLI: taskframe add/list/done/del/note/undo · qualquer tecla fecha"))
+	lines = append(lines, "", " "+th.Dim.Render(hp.lang.T("tuihelp.footer")))
 
 	bw := 64
 	if bw > w-4 {
 		bw = w - 4
 	}
-	return drawBox(th, "Ajuda", lines, bw, len(lines)+3, true)
+	return drawBox(th, hp.lang.T("tuihelp.title"), lines, bw, len(lines)+3, true)
 }

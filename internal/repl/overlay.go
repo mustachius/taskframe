@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 	"github.com/jvsaga/taskframe/internal/ui"
@@ -106,7 +107,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if err := m.store.DeleteTask(id); err != nil {
 					return errResult(m.th, err.Error())
 				}
-				return resultMsg{lines: []string{m.th.Dim.Render(fmt.Sprintf("  tarefa %d deletada", id))}, reload: true}
+				return resultMsg{lines: []string{m.th.Dim.Render(m.lang.Tf("status.taskDeleted", id))}, reload: true}
 			})
 		}
 	}
@@ -183,14 +184,14 @@ func (m model) viewList() string {
 	w := min(m.w, 100)
 	var lines []string
 	if len(m.listRows) == 0 {
-		lines = append(lines, m.th.Dim.Render(" nenhuma tarefa"))
+		lines = append(lines, m.th.Dim.Render(m.lang.T("overlay.empty")))
 	}
 	for i := m.offset; i < len(m.listRows) && i < m.offset+h; i++ {
 		r := m.listRows[i]
 		lines = append(lines, taskLine(m.th, r, w-2, now, i == m.cursor, m.ascii))
 	}
 	box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.listTitle, lines, w, len(lines)+2, true)
-	hint := m.th.Dim.Render("  ↑↓ move · ←→ recolhe · a filho · enter abre · d conclui · x deleta · esc fecha")
+	hint := m.th.Dim.Render(m.lang.T("overlay.hint"))
 	pos := ""
 	if len(m.listRows) > 0 {
 		pos = m.th.Dim.Render(fmt.Sprintf("  %d/%d", m.cursor+1, len(m.listRows)))
@@ -227,51 +228,51 @@ func (m model) viewDetail() string {
 	}
 	end := min(len(m.detailLines), m.detailScroll+inner)
 	visible := m.detailLines[m.detailScroll:end]
-	title := "tarefa"
+	title := m.lang.T("detail.title")
 	if m.detail != nil {
-		title = fmt.Sprintf("tarefa %d", m.detail.ID)
+		title = m.lang.Tf("detail.titleN", m.detail.ID)
 	}
 	box := ui.DrawBoxChars(m.th, roundBox(m.ascii), title, visible, w, len(visible)+2, true)
-	return box + "\n" + m.th.Dim.Render("  ↑↓ rola · esc volta")
+	return box + "\n" + m.th.Dim.Render(m.lang.T("detail.footer"))
 }
 
 // detailBlock formats a task's fields, parent, subtasks, notes and activity
 // for the detail view.
-func detailBlock(th ui.Theme, t, parent *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity, w int) []string {
+func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity, w int) []string {
 	label := func(s string) string { return th.Dim.Render(ui.PadRowPlain(s, 16)) }
 	val := func(s string) string { return th.Text.Render(s) }
 	var lines []string
 	add := func(s string) { lines = append(lines, s) }
 
 	add(" " + th.TitleFocus.Render(ui.TruncRunes(t.Title, w-2)))
-	add(" " + label("status") + val(string(t.Status)))
+	add(" " + label(lang.T("lbl.status")) + val(string(t.Status)))
 	if t.Start != nil {
-		add(" " + label("iniciada") + th.Accent.Render("▶ "+t.Start.Format("02/01/2006 15:04")))
+		add(" " + label(lang.T("lbl.started")) + th.Accent.Render("▶ "+t.Start.Format("02/01/2006 15:04")))
 	}
 	if parent != nil {
-		add(" " + label("pai") + val(ui.TruncRunes(fmt.Sprintf("#%d %s", parent.ID, parent.Title), w-18)))
+		add(" " + label(lang.T("lbl.parent")) + val(ui.TruncRunes(fmt.Sprintf("#%d %s", parent.ID, parent.Title), w-18)))
 	}
 	if t.Project != "" {
-		add(" " + label("projeto") + val(t.Project))
+		add(" " + label(lang.T("lbl.project")) + val(t.Project))
 	}
 	if len(t.Tags) > 0 {
-		add(" " + label("tags") + val("+"+strings.Join(t.Tags, " +")))
+		add(" " + label(lang.T("lbl.tags")) + val("+"+strings.Join(t.Tags, " +")))
 	}
 	if t.Priority != task.PriorityNone {
-		add(" " + label("prioridade") + val(string(t.Priority)))
+		add(" " + label(lang.T("lbl.priority")) + val(string(t.Priority)))
 	}
 	if t.Due != nil {
-		add(" " + label("vencimento") + val(t.Due.Format("02/01/2006")))
+		add(" " + label(lang.T("lbl.due")) + val(t.Due.Format("02/01/2006")))
 	}
 	if t.Wait != nil {
-		add(" " + label("aguardar até") + val(t.Wait.Format("02/01/2006")))
+		add(" " + label(lang.T("lbl.waitUntil")) + val(t.Wait.Format("02/01/2006")))
 	}
 	if t.Recur != "" {
-		add(" " + label("recorrência") + val(t.Recur))
+		add(" " + label(lang.T("lbl.recurrence")) + val(t.Recur))
 	}
-	add(" " + label("criada") + val(t.CreatedAt.Format("02/01/2006 15:04")))
+	add(" " + label(lang.T("lbl.created")) + val(t.CreatedAt.Format("02/01/2006 15:04")))
 	if t.CompletedAt != nil {
-		add(" " + label("concluída") + val(t.CompletedAt.Format("02/01/2006 15:04")))
+		add(" " + label(lang.T("lbl.completed")) + val(t.CompletedAt.Format("02/01/2006 15:04")))
 	}
 	if len(children) > 0 {
 		done := 0
@@ -280,7 +281,7 @@ func detailBlock(th ui.Theme, t, parent *task.Task, children []*task.Task, notes
 				done++
 			}
 		}
-		add(" " + th.TitleFocus.Render(fmt.Sprintf("subtarefas %d/%d", done, len(children))))
+		add(" " + th.TitleFocus.Render(lang.Tf("detail.subtasks", done, len(children))))
 		for _, c := range children {
 			mark := "[ ]"
 			if c.Status == task.StatusDone {
@@ -290,33 +291,33 @@ func detailBlock(th ui.Theme, t, parent *task.Task, children []*task.Task, notes
 		}
 	}
 	if len(notes) > 0 {
-		add(" " + th.TitleFocus.Render("notas"))
+		add(" " + th.TitleFocus.Render(lang.T("detail.notes")))
 		for _, n := range notes {
 			add(" " + th.Dim.Render(n.CreatedAt.Format("02/01 15:04")+" ") + th.Text.Render(ui.TruncRunes(n.Body, w-16)))
 		}
 	}
-	add(" " + th.TitleFocus.Render("histórico"))
+	add(" " + th.TitleFocus.Render(lang.T("detail.history")))
 	for _, a := range acts {
-		add(" " + th.Dim.Render(a.TS.Format("02/01 15:04")+" ") + th.Text.Render(ui.TruncRunes(actDesc(a), w-16)))
+		add(" " + th.Dim.Render(a.TS.Format("02/01 15:04")+" ") + th.Text.Render(ui.TruncRunes(actDesc(lang, a), w-16)))
 	}
 	return lines
 }
 
-func actDesc(a task.Activity) string {
+func actDesc(lang i18n.Lang, a task.Activity) string {
 	switch a.Kind {
 	case "create":
-		return "criada: " + a.NewVal
+		return lang.T("act.created") + a.NewVal
 	case "done":
-		return "concluída"
+		return lang.T("act.done")
 	case "delete":
-		return "deletada"
+		return lang.T("act.deleted")
 	case "note":
-		return "nota: " + a.NewVal
+		return lang.T("act.note") + a.NewVal
 	case "modify":
 		if a.OldVal == "" {
-			return fmt.Sprintf("%s definido: %s", a.Field, a.NewVal)
+			return lang.Tf("act.setTo", a.Field, a.NewVal)
 		}
-		return fmt.Sprintf("%s: %s → %s", a.Field, a.OldVal, a.NewVal)
+		return lang.Tf("act.changed", a.Field, a.OldVal, a.NewVal)
 	}
 	return a.Kind
 }

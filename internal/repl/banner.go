@@ -3,6 +3,7 @@ package repl
 import (
 	"strings"
 
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/ui"
 )
 
@@ -31,7 +32,7 @@ var wordmarkASCII = []string{
 // (accent color) above the subtitle. The default ANSI Shadow style uses Unicode
 // block glyphs; when ascii is set, a width-1 pure-ASCII wordmark is used instead
 // so it renders on legacy conhost / --ascii.
-func Banner(th ui.Theme, ascii bool) string {
+func Banner(th ui.Theme, ascii bool, lang i18n.Lang) string {
 	wordmark := wordmarkShadow
 	if ascii {
 		wordmark = wordmarkASCII
@@ -42,16 +43,16 @@ func Banner(th ui.Theme, ascii bool) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
-	b.WriteString(th.Dim.Render("tarefas no terminal"))
+	b.WriteString(th.Dim.Render(lang.T("banner.subtitle")))
 	b.WriteString("\n")
 	return b.String()
 }
 
 // Hint is the one-line usage reminder printed under the banner.
-func Hint(th ui.Theme) string {
-	return th.Dim.Render("dica: ") +
-		th.Text.Render("'add comprar leite due:sex'") + th.Dim.Render(" cria · ") +
-		th.Text.Render("'list'") + th.Dim.Render(" navega · ") +
-		th.Text.Render("/help") + th.Dim.Render(" ajuda · ") +
-		th.Text.Render("/quit") + th.Dim.Render(" sai")
+func Hint(th ui.Theme, lang i18n.Lang) string {
+	return th.Dim.Render(lang.T("hint.tip")) +
+		th.Text.Render(lang.T("hint.example")) + th.Dim.Render(lang.T("hint.creates")) +
+		th.Text.Render("'list'") + th.Dim.Render(lang.T("hint.navigates")) +
+		th.Text.Render("/help") + th.Dim.Render(lang.T("hint.help")) +
+		th.Text.Render("/quit") + th.Dim.Render(lang.T("hint.quit"))
 }

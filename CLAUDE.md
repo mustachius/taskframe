@@ -23,12 +23,13 @@ Rodar: `.\taskframe.exe` abre o REPL; `taskframe classic` abre a TUI de dois pai
 
 Camadas com dependência estrita em um só sentido — violar isso é regressão:
 
-- `internal/task` — domínio puro (Task, Note, Activity, Filter, urgency, datas, **`ParseTokens`** — parser dos tokens `pro:`/`+tag`/`due:` etc., compartilhado por CLI e REPL). **Não importa nada do projeto.**
+- `internal/task` — domínio puro (Task, Note, Activity, Filter, urgency, datas, **`ParseTokens`** — parser dos tokens `pro:`/`+tag`/`due:` etc., compartilhado por CLI e REPL). **Não importa nada do projeto.** Strings de domínio/erro sempre em **inglês** (não passam pelo i18n).
 - `internal/store` — SQLite. Importa só `task`. Todo SQL escrito à mão; sem ORM. `CheckMoveCycle` valida hierarquia (usado por REPL e TUI).
+- `internal/i18n` — catálogo de mensagens da camada de apresentação (pacote leaf, **não importa nada**). Inglês é a fonte canônica (default), pt-br é a tradução. `Lang.T(key)`/`Lang.Tf(key, args...)` sobre `catalog` (`map[string][2]string`, `[0]=en`, `[1]=pt-br`). Usado por `ui`/`repl`/`tui`/`cli`. **Só apresentação** — erros de `task`/`store` ficam em inglês para não quebrar o layering. Toggle: `/lang` no REPL, `taskframe lang` na CLI; precedência resolvida em `main.go` (`--lang` > `TASKFRAME_LANG` > setting `lang` > config > en).
 - `internal/ui` — camada visual compartilhada: `Theme`, `NewTheme`, `NormalizeTheme`, `NextTheme`, `DrawBox`/`DrawBoxChars`, `TruncRunes`, `PadRow`, `PadRowPlain`, `VisibleWidth`. Importado por `tui` e `repl`.
 - `internal/tui` (clássica) e `internal/repl` (padrão) — irmãos; importam `task`+`store`+`ui`. **Nenhum toca `database/sql`**: chamam o store dentro de closures `tea.Cmd` e recebem o resultado como mensagem. `tui/theme.go` é um shim fino que re-exporta `internal/ui` para o código antigo (que usa grafias minúsculas `truncRunes` etc.).
 - `internal/cli` — CLI one-shot; importa `task`+`store`.
-- `cmd/taskframe/main.go` — sem args → `repl.Run`; `classic` → `tui.Run`; senão → `cli.Run`. `resolveOptions` (precedência `--theme` > `TASKFRAME_THEME` > setting > default) é reusado pelos três.
+- `cmd/taskframe/main.go` — sem args → `repl.Run`; `classic` → `tui.Run`; senão → `cli.Run`. `resolveOptions` (precedência `--theme` > `TASKFRAME_THEME` > setting > default; idem para `lang`) é reusado pelos três.
 
 ### REPL (`internal/repl`, o padrão)
 

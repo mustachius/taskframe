@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/task"
 )
 
@@ -40,10 +41,10 @@ type Sidebar struct {
 }
 
 // SetCounts rebuilds the item list from freshly loaded counts.
-func (s *Sidebar) SetCounts(d sidebarData) {
+func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 	prev := s.selectedKey()
 	s.items = s.items[:0]
-	s.items = append(s.items, sbItem{kind: sbAll, label: "(todas)", count: d.total})
+	s.items = append(s.items, sbItem{kind: sbAll, label: lang.T("sb.all"), count: d.total})
 
 	// every node in the dotted hierarchy, with counts aggregated upward
 	nodes := map[string]int{}
@@ -72,10 +73,10 @@ func (s *Sidebar) SetCounts(d sidebarData) {
 
 	s.items = append(s.items,
 		sbItem{kind: sbSeparator},
-		sbItem{kind: sbToday, label: "Hoje", count: d.today},
-		sbItem{kind: sbOverdue, label: "Atrasadas", count: d.overdue},
-		sbItem{kind: sbWeek, label: "Semana", count: d.week},
-		sbItem{kind: sbWaiting, label: "Aguardando", count: d.waiting},
+		sbItem{kind: sbToday, label: lang.T("sb.today"), count: d.today},
+		sbItem{kind: sbOverdue, label: lang.T("sb.overdue"), count: d.overdue},
+		sbItem{kind: sbWeek, label: lang.T("sb.week"), count: d.week},
+		sbItem{kind: sbWaiting, label: lang.T("sb.waiting"), count: d.waiting},
 	)
 
 	if len(d.tags) > 0 {
@@ -92,8 +93,8 @@ func (s *Sidebar) SetCounts(d sidebarData) {
 
 	s.items = append(s.items,
 		sbItem{kind: sbSeparator},
-		sbItem{kind: sbDone, label: "Concluídas", count: d.done},
-		sbItem{kind: sbDeleted, label: "Deletadas", count: d.del},
+		sbItem{kind: sbDone, label: lang.T("sb.done"), count: d.done},
+		sbItem{kind: sbDeleted, label: lang.T("sb.deleted"), count: d.del},
 	)
 
 	// keep selection stable across reloads
@@ -168,29 +169,29 @@ func (s *Sidebar) Filter() task.Filter {
 }
 
 // Title returns a human label for the current selection (list panel title).
-func (s *Sidebar) Title() string {
+func (s *Sidebar) Title(lang i18n.Lang) string {
 	if s.cursor >= len(s.items) {
-		return "Tarefas"
+		return lang.T("sb.title.tasks")
 	}
 	switch it := s.items[s.cursor]; it.kind {
 	case sbProject:
-		return "Tarefas: " + it.value
+		return lang.T("sb.title.of") + it.value
 	case sbToday:
-		return "Hoje"
+		return lang.T("sb.today")
 	case sbOverdue:
-		return "Atrasadas"
+		return lang.T("sb.overdue")
 	case sbWeek:
-		return "Próximos 7 dias"
+		return lang.T("sb.title.week")
 	case sbWaiting:
-		return "Aguardando"
+		return lang.T("sb.waiting")
 	case sbTag:
-		return "Tarefas: +" + it.value
+		return lang.T("sb.title.of") + "+" + it.value
 	case sbDone:
-		return "Concluídas"
+		return lang.T("sb.done")
 	case sbDeleted:
-		return "Deletadas"
+		return lang.T("sb.deleted")
 	default:
-		return "Tarefas"
+		return lang.T("sb.title.tasks")
 	}
 }
 

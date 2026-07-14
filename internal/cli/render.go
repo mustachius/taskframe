@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 	"github.com/jvsaga/taskframe/internal/ui"
@@ -17,9 +18,9 @@ type cliRow struct {
 
 // renderList prints a plain-text table, tree-indented, sorted by sortMode.
 // limit > 0 caps the number of displayed rows. No ANSI: output is pipe-friendly.
-func renderList(tasks []*task.Task, sortMode task.SortMode, limit int) {
+func renderList(tasks []*task.Task, sortMode task.SortMode, limit int, lang i18n.Lang) {
 	if len(tasks) == 0 {
-		fmt.Println("nenhuma tarefa")
+		fmt.Println(lang.T("cli.render.noTasks"))
 		return
 	}
 	now := time.Now()
@@ -53,9 +54,9 @@ func renderList(tasks []*task.Task, sortMode task.SortMode, limit int) {
 			truncate(r.t.Project, 30), ui.TreePrefix(r.lastStack, false), tagsSuffix(r.t))
 	}
 	if truncated {
-		fmt.Printf("\n%d de %d tarefa(s) (limite %d)\n", len(rows), len(tasks), limit)
+		fmt.Printf(lang.T("cli.render.countLimit"), len(rows), len(tasks), limit)
 	} else {
-		fmt.Printf("\n%d tarefa(s)\n", len(rows))
+		fmt.Printf(lang.T("cli.render.count"), len(rows))
 	}
 }
 

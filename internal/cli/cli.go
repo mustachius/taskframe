@@ -3,6 +3,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -10,112 +11,99 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 )
 
-// Run dispatches a subcommand. args excludes the program name.
-func Run(s *store.Store, args []string) error {
+// Run dispatches a subcommand. args excludes the program name. lang is the
+// resolved UI language for localized output.
+func Run(s *store.Store, args []string, lang i18n.Lang) error {
 	cmd, rest := args[0], args[1:]
 	switch cmd {
 	case "add":
-		return cmdAdd(s, rest)
+		return cmdAdd(s, rest, lang)
 	case "list", "ls":
-		return cmdList(s, rest)
+		return cmdList(s, rest, lang)
 	case "done":
-		return cmdDone(s, rest)
+		return cmdDone(s, rest, lang)
 	case "del", "delete", "rm":
-		return cmdDel(s, rest)
+		return cmdDel(s, rest, lang)
 	case "note":
-		return cmdNote(s, rest)
+		return cmdNote(s, rest, lang)
 	case "move", "mv":
-		return cmdMove(s, rest)
+		return cmdMove(s, rest, lang)
 	case "context", "ctx":
-		return cmdContext(s, rest)
+		return cmdContext(s, rest, lang)
 	case "start":
-		return cmdStartStop(s, rest, true)
+		return cmdStartStop(s, rest, true, lang)
 	case "stop":
-		return cmdStartStop(s, rest, false)
+		return cmdStartStop(s, rest, false, lang)
+	case "lang":
+		return cmdLang(s, rest, lang)
 	case "undo":
-		return cmdUndo(s)
+		return cmdUndo(s, lang)
 	case "redo":
-		return cmdRedo(s)
+		return cmdRedo(s, lang)
 	case "purge":
-		return cmdPurge(s)
+		return cmdPurge(s, lang)
 	case "export":
 		return cmdExport(s)
 	case "import":
-		return cmdImport(s, rest)
+		return cmdImport(s, rest, lang)
 	case "help", "-h", "--help":
-		printHelp()
+		printHelp(lang)
 		return nil
 	default:
 		if r, ok := task.LookupReport(cmd); ok {
-			return cmdReport(s, r, rest)
+			return cmdReport(s, r, rest, lang)
 		}
-		printHelp()
+		printHelp(lang)
 		return fmt.Errorf("unknown command: %s", cmd)
 	}
 }
 
-func printHelp() {
-	fmt.Print(`taskframe — gerenciador de tarefas no terminal
-
-uso:
-  taskframe                     abre a TUI
-  taskframe add <título> [tokens]
-  taskframe list [tokens]
-  taskframe done <ids>          ids: 1  1,5  1-3  (ranges e listas)
-  taskframe del <ids>
-  taskframe note <id> <texto>
-  taskframe move <id> [pro:x] [sub:N]   muda projeto/pai (sub:0 vira raiz)
-  taskframe context [<nome>|none|list|define <nome> <tokens>|delete <nome>]
-  taskframe start <ids>         marca em andamento (urgência sobe)
-  taskframe stop <ids>
-  taskframe undo
-  taskframe redo                refaz o último undo
-  taskframe purge               remove definitivamente tarefas deletadas
-  taskframe export              backup JSON completo no stdout
-  taskframe import [--replace] <arquivo>   restaura backup (--replace sobrescreve)
-
-reports (aceitam tokens extras, ex: taskframe next pro:work):
-  next            pendências mais urgentes (top 15)
-  overdue         vencidas
-  today           vencem até hoje
-  week            próximos 7 dias
-  waiting         aguardando (wait futuro)
-  active          em andamento (iniciadas)
-
-tokens (add e list):
-  pro:work.api    projeto (hierarquia com pontos)
-  +tag / -tag     exige / exclui a tag (só list para -tag)
-  due:sex         vencimento (today, tomorrow, 3d, fri/sex, 2026-08-01...)
-  prio:H          prioridade H, M ou L
-  wait:1w         esconder até a data
-  recur:weekly    recorrência (daily, weekly, monthly, 3d...)
-  sub:12          criar como subtarefa da tarefa 12 (só add)
-  status:done     filtra por status (pending, done, deleted, all)
-  all             incluir concluídas/deletadas (só list)
-  texto livre     no add vira título; no list vira busca
-`)
+func printHelp(lang i18n.Lang) {
+	fmt.Print(lang.T("cli.help"))
 }
 
-func cmdAdd(s *store.Store, args []string) error {
+// cmdLang shows or switches the persisted UI language.
+func cmdLang(s *store.Store, args []string, lang i18n.Lang) error {
 	if len(args) == 0 {
-		return fmt.Errorf("uso: taskframe add <título> [pro:x +tag due:x prio:H]")
+		return report(lang, "cli.lang.current", string(lang))
+	}
+	if i18n.Normalize(args[0]) != i18n.Lang(args[0]) {
+		return fmt.Errorf(lang.T("cli.lang.invalid"), args[0])
+	}
+	if err := s.SetLanguage(args[0]); err != nil {
+		return err
+	}
+	fmt.Printf(i18n.Lang(args[0]).T("cli.lang.current")+"\n", args[0])
+	return nil
+}
+
+// report prints a localized, formatted line (helper to keep call sites short).
+func report(lang i18n.Lang, key string, a ...any) error {
+	fmt.Println(lang.Tf(key, a...))
+	return nil
+}
+
+func cmdAdd(s *store.Store, args []string, lang i18n.Lang) error {
+	if len(args) == 0 {
+		return errors.New(lang.T("cli.usage.add"))
 	}
 	t, _, title, err := task.ParseTokens(args, time.Now())
 	if err != nil {
 		return err
 	}
 	if title == "" {
-		return fmt.Errorf("título vazio")
+		return errors.New(lang.T("err.titleEmpty"))
 	}
 	t.Title = title
 	if err := s.AddTask(&t); err != nil {
 		return err
 	}
-	fmt.Printf("tarefa %d criada: %s\n", t.ID, t.Title)
+	fmt.Printf(lang.T("cli.taskCreated")+"\n", t.ID, t.Title)
 	return nil
 }
 
@@ -130,7 +118,7 @@ func applyContext(s *store.Store, base, userF task.Filter, now time.Time) (task.
 	return base.Merge(cf).Merge(userF), name
 }
 
-func cmdList(s *store.Store, args []string) error {
+func cmdList(s *store.Store, args []string, lang i18n.Lang) error {
 	now := time.Now()
 	_, userF, text, err := task.ParseTokens(args, now)
 	if err != nil {
@@ -144,16 +132,16 @@ func cmdList(s *store.Store, args []string) error {
 		return err
 	}
 	if ctxName != "" {
-		fmt.Printf("[contexto: %s]\n", ctxName)
+		fmt.Printf(lang.T("cli.ctxTag")+"\n", ctxName)
 	}
-	renderList(tasks, task.SortUrgency, 0)
+	renderList(tasks, task.SortUrgency, 0, lang)
 	return nil
 }
 
 // cmdReport runs a named report (next, overdue, today, week, waiting), merging
 // the active context and any extra tokens the user typed onto the report's
 // base filter.
-func cmdReport(s *store.Store, r task.Report, args []string) error {
+func cmdReport(s *store.Store, r task.Report, args []string, lang i18n.Lang) error {
 	now := time.Now()
 	_, userF, text, err := task.ParseTokens(args, now)
 	if err != nil {
@@ -166,13 +154,13 @@ func cmdReport(s *store.Store, r task.Report, args []string) error {
 		return err
 	}
 	if ctxName != "" {
-		fmt.Printf("[contexto: %s]\n", ctxName)
+		fmt.Printf(lang.T("cli.ctxTag")+"\n", ctxName)
 	}
-	renderList(tasks, r.Sort, r.Limit)
+	renderList(tasks, r.Sort, r.Limit, lang)
 	return nil
 }
 
-func cmdDone(s *store.Store, args []string) error {
+func cmdDone(s *store.Store, args []string, lang i18n.Lang) error {
 	ids, err := task.ParseIDSpec(args)
 	if err != nil {
 		return err
@@ -182,15 +170,15 @@ func cmdDone(s *store.Store, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("tarefa %d concluída\n", id)
+		fmt.Printf(lang.T("cli.taskDone")+"\n", id)
 		if next != nil {
-			fmt.Printf("recorrência: tarefa %d criada, vence %s\n", next.ID, next.Due.Format("02/01/2006"))
+			fmt.Printf(lang.T("cli.recurCreated")+"\n", next.ID, next.Due.Format("02/01/2006"))
 		}
 	}
 	return nil
 }
 
-func cmdDel(s *store.Store, args []string) error {
+func cmdDel(s *store.Store, args []string, lang i18n.Lang) error {
 	ids, err := task.ParseIDSpec(args)
 	if err != nil {
 		return err
@@ -199,33 +187,33 @@ func cmdDel(s *store.Store, args []string) error {
 		if err := s.DeleteTask(id); err != nil {
 			return err
 		}
-		fmt.Printf("tarefa %d deletada (undo para desfazer, purge para remover de vez)\n", id)
+		fmt.Printf(lang.T("cli.taskDeleted")+"\n", id)
 	}
 	return nil
 }
 
-func cmdNote(s *store.Store, args []string) error {
+func cmdNote(s *store.Store, args []string, lang i18n.Lang) error {
 	if len(args) < 2 {
-		return fmt.Errorf("uso: taskframe note <id> <texto>")
+		return errors.New(lang.T("cli.usage.note"))
 	}
 	id, err := strconv.ParseInt(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("id inválido: %s", args[0])
+		return fmt.Errorf(lang.T("err.idInvalid"), args[0])
 	}
 	if _, err := s.AddNote(id, strings.Join(args[1:], " ")); err != nil {
 		return err
 	}
-	fmt.Printf("nota adicionada à tarefa %d\n", id)
+	fmt.Printf(lang.T("cli.noteAdded")+"\n", id)
 	return nil
 }
 
-func cmdMove(s *store.Store, args []string) error {
+func cmdMove(s *store.Store, args []string, lang i18n.Lang) error {
 	if len(args) < 2 {
-		return fmt.Errorf("uso: taskframe move <id> [pro:projeto] [sub:idPai]  (sub:0 vira raiz)")
+		return errors.New(lang.T("cli.usage.move"))
 	}
 	id, err := strconv.ParseInt(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("id inválido: %s", args[0])
+		return fmt.Errorf(lang.T("err.idInvalid"), args[0])
 	}
 	t, err := s.GetTask(id)
 	if err != nil {
@@ -242,13 +230,13 @@ func cmdMove(s *store.Store, args []string) error {
 		case strings.HasPrefix(a, "sub:"):
 			p, perr := strconv.ParseInt(a[4:], 10, 64)
 			if perr != nil {
-				return fmt.Errorf("sub: espera um id numérico (ou 0)")
+				return errors.New(lang.T("err.subNumeric"))
 			}
 			newParent, setParent = p, true
 		}
 	}
 	if !setProject && !setParent {
-		return fmt.Errorf("nada a mover: informe pro: e/ou sub:")
+		return errors.New(lang.T("err.nothingToMove"))
 	}
 	if setParent {
 		if newParent != 0 {
@@ -261,20 +249,20 @@ func cmdMove(s *store.Store, args []string) error {
 	if err := s.UpdateTask(t); err != nil {
 		return err
 	}
-	fmt.Printf("tarefa %d movida\n", id)
+	fmt.Printf(lang.T("cli.taskMoved")+"\n", id)
 	return nil
 }
 
 // cmdContext manages named default filters (Taskwarrior contexts).
-func cmdContext(s *store.Store, args []string) error {
+func cmdContext(s *store.Store, args []string, lang i18n.Lang) error {
 	if len(args) == 0 {
 		name, _ := s.ActiveContext()
 		if name == "" {
-			fmt.Println("nenhum contexto ativo (context <nome> ativa · context list mostra)")
+			fmt.Println(lang.T("cli.ctx.noneActive"))
 			return nil
 		}
 		tokens, _ := s.ContextTokens(name)
-		fmt.Printf("contexto ativo: %s  (%s)\n", name, tokens)
+		fmt.Printf(lang.T("cli.ctx.active")+"\n", name, tokens)
 		return nil
 	}
 	switch args[0] {
@@ -284,7 +272,7 @@ func cmdContext(s *store.Store, args []string) error {
 			return err
 		}
 		if len(ctxs) == 0 {
-			fmt.Println("nenhum contexto definido")
+			fmt.Println(lang.T("cli.ctx.noneDefined"))
 			return nil
 		}
 		active, _ := s.ActiveContext()
@@ -303,7 +291,7 @@ func cmdContext(s *store.Store, args []string) error {
 		return nil
 	case "define", "def":
 		if len(args) < 3 {
-			return fmt.Errorf("uso: taskframe context define <nome> <tokens>")
+			return errors.New(lang.T("cli.usage.ctxDefine"))
 		}
 		name := args[1]
 		if _, _, _, e := task.ParseTokens(args[2:], time.Now()); e != nil {
@@ -313,22 +301,22 @@ func cmdContext(s *store.Store, args []string) error {
 		if err := s.DefineContext(name, tokens); err != nil {
 			return err
 		}
-		fmt.Printf("contexto %s definido: %s\n", name, tokens)
+		fmt.Printf(lang.T("cli.ctx.defined")+"\n", name, tokens)
 		return nil
 	case "none", "off":
 		if err := s.SetActiveContext(""); err != nil {
 			return err
 		}
-		fmt.Println("contexto desativado")
+		fmt.Println(lang.T("cli.ctx.deactivated"))
 		return nil
 	case "delete", "del", "rm":
 		if len(args) < 2 {
-			return fmt.Errorf("uso: taskframe context delete <nome>")
+			return errors.New(lang.T("cli.usage.ctxDelete"))
 		}
 		if err := s.DeleteContext(args[1]); err != nil {
 			return err
 		}
-		fmt.Printf("contexto %s removido\n", args[1])
+		fmt.Printf(lang.T("cli.ctx.removed")+"\n", args[1])
 		return nil
 	default:
 		name := args[0]
@@ -337,18 +325,18 @@ func cmdContext(s *store.Store, args []string) error {
 			return err
 		}
 		if _, ok := ctxs[name]; !ok {
-			return fmt.Errorf("contexto %q não definido (context define %s <tokens>)", name, name)
+			return fmt.Errorf(lang.T("err.ctxUndefined"), name, name)
 		}
 		if err := s.SetActiveContext(name); err != nil {
 			return err
 		}
-		fmt.Printf("contexto ativo: %s\n", name)
+		fmt.Printf(lang.T("cli.ctx.active2")+"\n", name)
 		return nil
 	}
 }
 
 // cmdStartStop marks tasks active (start) or idle (stop).
-func cmdStartStop(s *store.Store, args []string, start bool) error {
+func cmdStartStop(s *store.Store, args []string, start bool, lang i18n.Lang) error {
 	ids, err := task.ParseIDSpec(args)
 	if err != nil {
 		return err
@@ -363,29 +351,29 @@ func cmdStartStop(s *store.Store, args []string, start bool) error {
 			return err
 		}
 		if start {
-			fmt.Printf("tarefa %d iniciada\n", id)
+			fmt.Printf(lang.T("cli.taskStarted")+"\n", id)
 		} else {
-			fmt.Printf("tarefa %d parada\n", id)
+			fmt.Printf(lang.T("cli.taskStopped")+"\n", id)
 		}
 	}
 	return nil
 }
 
-func cmdUndo(s *store.Store) error {
+func cmdUndo(s *store.Store, lang i18n.Lang) error {
 	desc, err := s.Undo()
 	if err != nil {
 		return err
 	}
-	fmt.Println("desfeito:", desc)
+	fmt.Println(lang.T("cli.undone"), desc)
 	return nil
 }
 
-func cmdRedo(s *store.Store) error {
+func cmdRedo(s *store.Store, lang i18n.Lang) error {
 	desc, err := s.Redo()
 	if err != nil {
 		return err
 	}
-	fmt.Println("refeito:", desc)
+	fmt.Println(lang.T("cli.redone"), desc)
 	return nil
 }
 
@@ -399,7 +387,7 @@ func cmdExport(s *store.Store) error {
 	return enc.Encode(d)
 }
 
-func cmdImport(s *store.Store, args []string) error {
+func cmdImport(s *store.Store, args []string, lang i18n.Lang) error {
 	replace := false
 	var file string
 	for _, a := range args {
@@ -411,7 +399,7 @@ func cmdImport(s *store.Store, args []string) error {
 		}
 	}
 	if file == "" {
-		return fmt.Errorf("uso: taskframe import [--replace] <arquivo.json>")
+		return errors.New(lang.T("cli.usage.import"))
 	}
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -419,25 +407,25 @@ func cmdImport(s *store.Store, args []string) error {
 	}
 	var d store.Dump
 	if err := json.Unmarshal(data, &d); err != nil {
-		return fmt.Errorf("json inválido: %w", err)
+		return fmt.Errorf("%s: %w", lang.T("cli.err.jsonInvalid"), err)
 	}
 	if err := s.Import(&d, replace); err != nil {
 		return err
 	}
-	verb := "importado"
+	verb := lang.T("cli.import.imported")
 	if replace {
-		verb = "substituído"
+		verb = lang.T("cli.import.replaced")
 	}
-	fmt.Printf("%s: %d tarefa(s), %d nota(s), %d registro(s) de histórico\n",
+	fmt.Printf(lang.T("cli.import.summary")+"\n",
 		verb, len(d.Tasks), len(d.Notes), len(d.Activity))
 	return nil
 }
 
-func cmdPurge(s *store.Store) error {
+func cmdPurge(s *store.Store, lang i18n.Lang) error {
 	n, err := s.Purge()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%d tarefa(s) removida(s) definitivamente\n", n)
+	fmt.Printf(lang.T("cli.purged")+"\n", n)
 	return nil
 }

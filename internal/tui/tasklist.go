@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 )
@@ -122,7 +123,7 @@ func (l *TaskList) Expand() {
 func (l *TaskList) Count() int { return l.total }
 
 // Lines renders visible rows for the given inner size.
-func (l *TaskList) Lines(th Theme, w, h int, focused bool) []string {
+func (l *TaskList) Lines(th Theme, lang i18n.Lang, w, h int, focused bool) []string {
 	if l.cursor < l.offset {
 		l.offset = l.cursor
 	}
@@ -135,7 +136,7 @@ func (l *TaskList) Lines(th Theme, w, h int, focused bool) []string {
 		lines = append(lines, l.renderRow(th, l.rows[i], w, now, focused && i == l.cursor))
 	}
 	if len(l.rows) == 0 {
-		lines = append(lines, th.Dim.Render(" nenhuma tarefa — F2 para adicionar"))
+		lines = append(lines, th.Dim.Render(lang.T("tasklist.empty")))
 	}
 	return lines
 }

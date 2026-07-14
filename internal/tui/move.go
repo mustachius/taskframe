@@ -8,10 +8,12 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 )
 
 // Move is the F6 dialog: change a task's project and/or parent.
 type Move struct {
+	lang      i18n.Lang
 	taskID    int64
 	taskTitle string
 	project   textinput.Model
@@ -20,7 +22,7 @@ type Move struct {
 	errText   string
 }
 
-func NewMove(taskID int64, taskTitle, project string, parentID int64) *Move {
+func NewMove(lang i18n.Lang, taskID int64, taskTitle, project string, parentID int64) *Move {
 	mk := func(v string) textinput.Model {
 		ti := textinput.New()
 		ti.Prompt = ""
@@ -34,7 +36,7 @@ func NewMove(taskID int64, taskTitle, project string, parentID int64) *Move {
 	if parentID != 0 {
 		parentStr = strconv.FormatInt(parentID, 10)
 	}
-	m := &Move{taskID: taskID, taskTitle: taskTitle, project: mk(project), parent: mk(parentStr)}
+	m := &Move{lang: lang, taskID: taskID, taskTitle: taskTitle, project: mk(project), parent: mk(parentStr)}
 	m.project.Focus()
 	return m
 }
@@ -63,11 +65,11 @@ func (m *Move) Update(msg tea.Msg) (Modal, tea.Cmd) {
 		if v := strings.TrimSpace(m.parent.Value()); v != "" {
 			id, err := strconv.ParseInt(v, 10, 64)
 			if err != nil || id <= 0 {
-				m.errText = "id do pai inválido: " + v
+				m.errText = m.lang.Tf("move.err.parentInvalid", v)
 				return m, nil
 			}
 			if id == m.taskID {
-				m.errText = "a tarefa não pode ser pai dela mesma"
+				m.errText = m.lang.T("move.err.selfParent")
 				return m, nil
 			}
 			parentID = id
@@ -99,9 +101,9 @@ func (m *Move) View(th Theme, w, h int) string {
 		"",
 		" " + th.Dim.Render(truncRunes(fmt.Sprintf("%d — %s", m.taskID, m.taskTitle), 44)),
 		"",
-		field(0, "Projeto", m.project),
-		field(1, "Pai (id)", m.parent),
-		" " + strings.Repeat(" ", 12) + th.Dim.Render("vazio = tarefa raiz"),
+		field(0, m.lang.T("move.field.project"), m.project),
+		field(1, m.lang.T("move.field.parent"), m.parent),
+		" " + strings.Repeat(" ", 12) + th.Dim.Render(m.lang.T("move.hint.root")),
 		"",
 	}
 	if m.errText != "" {
@@ -109,11 +111,11 @@ func (m *Move) View(th Theme, w, h int) string {
 	} else {
 		lines = append(lines, "")
 	}
-	lines = append(lines, " "+th.Dim.Render("Enter move · Tab alterna · Esc cancela"))
+	lines = append(lines, " "+th.Dim.Render(m.lang.T("move.footer")))
 
 	bw := 52
 	if bw > w-4 {
 		bw = w - 4
 	}
-	return drawBox(th, "Mover tarefa", lines, bw, len(lines)+3, true)
+	return drawBox(th, m.lang.T("move.title"), lines, bw, len(lines)+3, true)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/task"
 )
 
@@ -22,11 +23,12 @@ const (
 	fCount
 )
 
-var formLabels = [fCount]string{"Título", "Projeto", "Tags", "Prioridade", "Vencimento", "Aguardar até", "Agendada", "Recorrência"}
-var formHints = [fCount]string{"", "ex: casa.mercado", "separadas por espaço", "H, M, L ou vazio", "today, 3d, sex, 15/08...", "esconder até a data", "não cobrar antes da data", "daily, weekly, 3d..."}
+var formLabelKeys = [fCount]string{"form.title", "form.project", "form.tags", "form.priority", "form.due", "form.waitUntil", "form.scheduled", "form.recur"}
+var formHintKeys = [fCount]string{"", "form.hint.project", "form.hint.tags", "form.hint.priority", "form.hint.due", "form.hint.wait", "form.hint.scheduled", "form.hint.recur"}
 
 // Form is the add/edit task modal.
 type Form struct {
+	lang     i18n.Lang
 	inputs   [fCount]textinput.Model
 	focus    int
 	original *task.Task // nil = creating
@@ -34,8 +36,8 @@ type Form struct {
 	errText  string
 }
 
-func NewForm(original *task.Task, parentID int64, defaultProject string) *Form {
-	f := &Form{original: original, parentID: parentID}
+func NewForm(lang i18n.Lang, original *task.Task, parentID int64, defaultProject string) *Form {
+	f := &Form{lang: lang, original: original, parentID: parentID}
 	for i := range f.inputs {
 		ti := textinput.New()
 		ti.Prompt = ""
@@ -97,13 +99,13 @@ func (f *Form) setFocus(i int) {
 func (f *Form) submit() (Modal, tea.Cmd) {
 	title := strings.TrimSpace(f.inputs[fTitle].Value())
 	if title == "" {
-		f.errText = "título é obrigatório"
+		f.errText = f.lang.T("form.err.titleReq")
 		f.setFocus(fTitle)
 		return f, nil
 	}
 	prio := strings.ToUpper(strings.TrimSpace(f.inputs[fPrio].Value()))
 	if prio != "" && prio != "H" && prio != "M" && prio != "L" {
-		f.errText = "prioridade deve ser H, M, L ou vazia"
+		f.errText = f.lang.T("form.err.priority")
 		f.setFocus(fPrio)
 		return f, nil
 	}
@@ -115,21 +117,21 @@ func (f *Form) submit() (Modal, tea.Cmd) {
 		}
 		d, err := task.ParseDate(v, time.Now())
 		if err != nil {
-			f.errText = name + " inválido: " + v
+			f.errText = f.lang.Tf("form.err.fieldInvalid", name, v)
 			f.setFocus(idx)
 			return nil, false
 		}
 		return &d, true
 	}
-	due, ok := parseDateField(fDue, "vencimento")
+	due, ok := parseDateField(fDue, f.lang.T("form.field.due"))
 	if !ok {
 		return f, nil
 	}
-	wait, ok := parseDateField(fWait, "aguardar")
+	wait, ok := parseDateField(fWait, f.lang.T("form.field.wait"))
 	if !ok {
 		return f, nil
 	}
-	scheduled, ok := parseDateField(fScheduled, "agendada")
+	scheduled, ok := parseDateField(fScheduled, f.lang.T("form.field.scheduled"))
 	if !ok {
 		return f, nil
 	}
@@ -137,7 +139,7 @@ func (f *Form) submit() (Modal, tea.Cmd) {
 	recur := strings.TrimSpace(f.inputs[fRecur].Value())
 	if recur != "" {
 		if _, err := task.NextRecurrence(recur, time.Now()); err != nil {
-			f.errText = "recorrência inválida: " + recur
+			f.errText = f.lang.Tf("form.err.recur", recur)
 			f.setFocus(fRecur)
 			return f, nil
 		}
@@ -164,26 +166,26 @@ func (f *Form) submit() (Modal, tea.Cmd) {
 }
 
 func (f *Form) View(th Theme, w, h int) string {
-	title := "Nova tarefa"
+	title := f.lang.T("form.title.new")
 	if f.original != nil {
-		title = "Editar tarefa"
+		title = f.lang.T("form.title.edit")
 	} else if f.parentID != 0 {
-		title = "Nova subtarefa"
+		title = f.lang.T("form.title.newSub")
 	}
 
 	labelW := 12
 	var lines []string
 	lines = append(lines, "")
 	for i := 0; i < fCount; i++ {
-		label := padRowPlain(formLabels[i], labelW)
+		label := padRowPlain(f.lang.T(formLabelKeys[i]), labelW)
 		style := th.Text
 		if i == f.focus {
 			style = th.TitleFocus
 		}
 		row := " " + style.Render(label) + th.Text.Render(f.inputs[i].View())
 		lines = append(lines, row)
-		if i == f.focus && formHints[i] != "" {
-			lines = append(lines, " "+strings.Repeat(" ", labelW)+th.Dim.Render(formHints[i]))
+		if i == f.focus && formHintKeys[i] != "" {
+			lines = append(lines, " "+strings.Repeat(" ", labelW)+th.Dim.Render(f.lang.T(formHintKeys[i])))
 		} else {
 			lines = append(lines, "")
 		}
@@ -193,7 +195,7 @@ func (f *Form) View(th Theme, w, h int) string {
 	} else {
 		lines = append(lines, "")
 	}
-	lines = append(lines, " "+th.Dim.Render("Enter salva · Tab próximo campo · Esc cancela"))
+	lines = append(lines, " "+th.Dim.Render(f.lang.T("form.footer")))
 
 	bw := 62
 	if bw > w-4 {

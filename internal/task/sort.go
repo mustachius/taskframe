@@ -31,14 +31,15 @@ func (m SortMode) Next() SortMode {
 	}
 }
 
-// Label is the human name shown in the status line.
+// Label is the canonical (English) sort-mode name. UI layers localize it via
+// the i18n catalog key "sort.<mode>"; this is the fallback / non-UI name.
 func (m SortMode) Label() string {
 	switch m {
 	case SortDue:
-		return "vencimento"
+		return "due"
 	case SortCreated:
-		return "criação"
+		return "created"
 	default:
-		return "urgência"
+		return "urgency"
 	}
 }

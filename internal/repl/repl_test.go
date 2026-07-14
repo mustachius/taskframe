@@ -115,7 +115,7 @@ func TestAddAndList(t *testing.T) {
 	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
 
 	m = run(t, m, "add tarefa nova pro:teste +x due:tomorrow")
-	if txt := transcriptText(m.(model)); !strings.Contains(txt, "criada") {
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "created") {
 		t.Fatalf("expected creation echo, transcript:\n%s", txt)
 	}
 	tasks, _ := s.List(task.Filter{Project: "teste"})
@@ -140,7 +140,7 @@ func TestAddAndList(t *testing.T) {
 	if mm.mode != modeDetail {
 		t.Fatalf("enter should open detail, mode=%d", mm.mode)
 	}
-	if !strings.Contains(stripANSI(m.View()), "histórico") {
+	if !strings.Contains(stripANSI(m.View()), "History") {
 		t.Error("detail should show activity log")
 	}
 	// esc back to list, esc back to prompt
@@ -158,7 +158,7 @@ func TestDoneViaCommand(t *testing.T) {
 	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
 
 	m = run(t, m, "done 1")
-	if txt := transcriptText(m.(model)); !strings.Contains(txt, "concluída") {
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "done") {
 		t.Fatalf("expected done echo, transcript:\n%s", txt)
 	}
 	got, _ := s.GetTask(1)
@@ -178,7 +178,7 @@ func TestUnknownCommand(t *testing.T) {
 	m = exec(t, m, tm.Init())
 	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
 	m = run(t, m, "frobnicate xyz")
-	if txt := transcriptText(m.(model)); !strings.Contains(txt, "desconhecido") {
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "unknown") {
 		t.Fatalf("expected unknown-command error, transcript:\n%s", txt)
 	}
 }
@@ -250,8 +250,8 @@ func TestSubCommand(t *testing.T) {
 	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
 
 	m = run(t, m, "sub 1 comprar pão")
-	if txt := transcriptText(m.(model)); !strings.Contains(txt, "criada sob 1") {
-		t.Fatalf("expected 'criada sob 1' echo, transcript:\n%s", txt)
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "created under 1") {
+		t.Fatalf("expected 'created under 1' echo, transcript:\n%s", txt)
 	}
 	kids, _ := s.Children(1)
 	if len(kids) != 1 || kids[0].Title != "comprar pão" || kids[0].ParentID != 1 {
@@ -260,7 +260,7 @@ func TestSubCommand(t *testing.T) {
 
 	// add with a bogus parent errors instead of silently orphaning
 	m = run(t, m, "add fantasma sub:999")
-	if txt := transcriptText(m.(model)); !strings.Contains(txt, "pai 999 não existe") {
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "parent 999 does not exist") {
 		t.Fatalf("expected missing-parent error, transcript:\n%s", txt)
 	}
 }
@@ -338,7 +338,7 @@ func TestSubtaskTreeAndDetail(t *testing.T) {
 	mm = m.(model)
 	m = exec(t, m, mm.openDetailCmd(1))
 	frame = stripANSI(m.View())
-	if !strings.Contains(frame, "subtarefas 0/2") || !strings.Contains(frame, "filho um") {
+	if !strings.Contains(frame, "subtasks 0/2") || !strings.Contains(frame, "filho um") {
 		t.Fatalf("parent detail should show subtask progress + list:\n%s", frame)
 	}
 
@@ -346,7 +346,7 @@ func TestSubtaskTreeAndDetail(t *testing.T) {
 	kids, _ := s.Children(1)
 	m = exec(t, m, m.(model).openDetailCmd(kids[0].ID))
 	frame = stripANSI(m.View())
-	if !strings.Contains(frame, "pai") || !strings.Contains(frame, "#1") {
+	if !strings.Contains(frame, "Parent") || !strings.Contains(frame, "#1") {
 		t.Fatalf("child detail should name its parent:\n%s", frame)
 	}
 }
@@ -455,8 +455,8 @@ func TestStartMarksActive(t *testing.T) {
 	if got.Start == nil {
 		t.Fatal("start command should activate task 2")
 	}
-	if txt := transcriptText(m.(model)); !strings.Contains(txt, "iniciada") {
-		t.Fatalf("expected 'iniciada' echo, transcript:\n%s", txt)
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "started") {
+		t.Fatalf("expected 'started' echo, transcript:\n%s", txt)
 	}
 
 	// the active report shows only task 2
@@ -482,8 +482,8 @@ func TestRedoViaCommand(t *testing.T) {
 		t.Fatal("undo should reopen task 1")
 	}
 	m = run(t, m, "redo")
-	if txt := transcriptText(m.(model)); !strings.Contains(txt, "refeito") {
-		t.Fatalf("expected 'refeito' echo, transcript:\n%s", txt)
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "redone") {
+		t.Fatalf("expected 'redone' echo, transcript:\n%s", txt)
 	}
 	if got, _ := s.GetTask(1); got.Status != task.StatusDone {
 		t.Fatal("redo should re-complete task 1")

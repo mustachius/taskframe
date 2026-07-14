@@ -1,13 +1,13 @@
 package repl
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/task"
 	"github.com/jvsaga/taskframe/internal/ui"
 )
@@ -107,8 +107,8 @@ func (m model) dispatch(line string) (tea.Model, tea.Cmd) {
 		if r, ok := task.LookupReport(verb); ok {
 			return m, m.cmdReport(r, rest)
 		}
-		return m, m.emit(m.th.StatusErr.Render("✗ comando desconhecido: "+verb) +
-			m.th.Dim.Render("  (/help para a lista)"))
+		return m, m.emit(m.th.StatusErr.Render(m.lang.Tf("err.unknownCmd", verb)) +
+			m.th.Dim.Render(m.lang.T("hint.helpList")))
 	}
 }
 
@@ -121,7 +121,7 @@ func (m model) dispatchSlash(line string) (tea.Model, tea.Cmd) {
 	}
 	switch cmd {
 	case "/help", "/h", "/?":
-		return m, m.emit(helpLines(m.th)...)
+		return m, m.emit(helpLines(m.th, m.lang)...)
 	case "/quit", "/exit", "/q":
 		return m, tea.Quit
 	case "/clear", "/cls":
@@ -132,15 +132,15 @@ func (m model) dispatchSlash(line string) (tea.Model, tea.Cmd) {
 		name := ui.NextTheme(m.th.Name)
 		if arg != "" {
 			if ui.NormalizeTheme(arg) != arg {
-				return m, m.emit(m.th.StatusErr.Render("✗ tema inválido: "+arg) +
-					m.th.Dim.Render("  (dark, borland, green, amber)"))
+				return m, m.emit(m.th.StatusErr.Render(m.lang.Tf("err.themeInvalid", arg)) +
+					m.th.Dim.Render(m.lang.T("hint.themes")))
 			}
 			name = arg
 		}
 		m.th = ui.NewTheme(name, m.ascii)
 		return m, tea.Batch(
 			persist(m.store, "theme", name),
-			m.emit(m.th.Accent.Render("  ✓ tema: "+name)),
+			m.emit(m.th.Accent.Render(m.lang.Tf("status.theme", name))),
 		)
 	case "/sort":
 		mode := m.sort.Next()
@@ -150,14 +150,29 @@ func (m model) dispatchSlash(line string) (tea.Model, tea.Cmd) {
 		m.sort = mode
 		return m, tea.Batch(
 			persist(m.store, "sort", string(mode)),
-			m.emit(m.th.Accent.Render("  ✓ ordenação: "+mode.Label())),
+			m.emit(m.th.Accent.Render(m.lang.Tf("status.sort", m.lang.T("sort."+string(mode))))),
+		)
+	case "/lang":
+		next := i18n.Next(m.lang)
+		if arg != "" {
+			if i18n.Normalize(arg) != i18n.Lang(arg) {
+				return m, m.emit(m.th.StatusErr.Render(m.lang.Tf("err.langInvalid", arg)) +
+					m.th.Dim.Render(m.lang.T("hint.langs")))
+			}
+			next = i18n.Lang(arg)
+		}
+		m.lang = next
+		m.input.Placeholder = m.lang.T("prompt.placeholder")
+		return m, tea.Batch(
+			persist(m.store, "lang", string(next)),
+			m.emit(m.th.Accent.Render(m.lang.Tf("status.lang", string(next)))),
 		)
 	case "/classic":
-		return m, m.emit(m.th.Dim.Render("  rode: ") + m.th.Text.Render("taskframe classic") +
-			m.th.Dim.Render("  (interface de dois painéis)"))
+		return m, m.emit(m.th.Dim.Render(m.lang.T("classic.run")) + m.th.Text.Render("taskframe classic") +
+			m.th.Dim.Render(m.lang.T("classic.hint")))
 	default:
-		return m, m.emit(m.th.StatusErr.Render("✗ comando desconhecido: "+cmd) +
-			m.th.Dim.Render("  (/help)"))
+		return m, m.emit(m.th.StatusErr.Render(m.lang.Tf("err.unknownCmd", cmd)) +
+			m.th.Dim.Render(m.lang.T("hint.helpShort")))
 	}
 }
 
@@ -166,28 +181,28 @@ func (m model) dispatchSlash(line string) (tea.Model, tea.Cmd) {
 func (m model) cmdAdd(args []string) tea.Cmd {
 	return func() tea.Msg {
 		if len(args) == 0 {
-			return errResult(m.th, "uso: add <título> [pro:x +tag due:x prio:H sub:N]")
+			return errResult(m.th, m.lang.T("usage.add"))
 		}
 		t, _, title, err := task.ParseTokens(args, time.Now())
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
 		if title == "" {
-			return errResult(m.th, "título vazio")
+			return errResult(m.th, m.lang.T("err.titleEmpty"))
 		}
 		t.Title = title
 		if t.ParentID != 0 {
 			p, perr := m.store.GetTask(t.ParentID)
 			if perr != nil || p.Status == task.StatusDeleted {
-				return errResult(m.th, fmt.Sprintf("pai %d não existe", t.ParentID))
+				return errResult(m.th, m.lang.Tf("err.parentMissing", t.ParentID))
 			}
 		}
 		if err := m.store.AddTask(&t); err != nil {
 			return errResult(m.th, err.Error())
 		}
-		msg := fmt.Sprintf("  ✓ tarefa %d criada: %s", t.ID, t.Title)
+		msg := m.lang.Tf("status.taskCreated", t.ID, t.Title)
 		if t.ParentID != 0 {
-			msg = fmt.Sprintf("  ✓ tarefa %d criada sob %d: %s", t.ID, t.ParentID, t.Title)
+			msg = m.lang.Tf("status.taskCreatedUnder", t.ID, t.ParentID, t.Title)
 		}
 		return resultMsg{lines: []string{m.th.Accent.Render(msg)}, reload: true}
 	}
@@ -197,29 +212,29 @@ func (m model) cmdAdd(args []string) tea.Cmd {
 func (m model) cmdSub(args []string) tea.Cmd {
 	return func() tea.Msg {
 		if len(args) < 2 {
-			return errResult(m.th, "uso: sub <pai> <título> [pro:x +tag due:x prio:H]")
+			return errResult(m.th, m.lang.T("usage.sub"))
 		}
 		pid, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
-			return errResult(m.th, "id do pai inválido: "+args[0])
+			return errResult(m.th, m.lang.Tf("err.parentIdInvalid", args[0]))
 		}
 		p, perr := m.store.GetTask(pid)
 		if perr != nil || p.Status == task.StatusDeleted {
-			return errResult(m.th, fmt.Sprintf("pai %d não existe", pid))
+			return errResult(m.th, m.lang.Tf("err.parentMissing", pid))
 		}
 		t, _, title, err := task.ParseTokens(args[1:], time.Now())
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
 		if title == "" {
-			return errResult(m.th, "título vazio")
+			return errResult(m.th, m.lang.T("err.titleEmpty"))
 		}
 		t.Title = title
 		t.ParentID = pid
 		if err := m.store.AddTask(&t); err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d criada sob %d: %s", t.ID, pid, t.Title))}, reload: true}
+		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.taskCreatedUnder", t.ID, pid, t.Title))}, reload: true}
 	}
 }
 
@@ -247,11 +262,11 @@ func (m model) cmdList(args []string) tea.Cmd {
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
-		title := "tarefas"
+		title := m.lang.T("list.title")
 		if filter.Project != "" {
 			title += " · " + filter.Project
 		} else if text != "" {
-			title += " · busca: " + text
+			title += m.lang.T("list.searchSep") + text
 		}
 		if ctxName != "" {
 			title += " · @" + ctxName
@@ -275,7 +290,7 @@ func (m model) cmdReport(r task.Report, args []string) tea.Cmd {
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
-		title := r.Name + " · " + r.Description
+		title := r.Name + " · " + m.lang.T("report."+r.Name)
 		if ctxName != "" {
 			title += " · @" + ctxName
 		}
@@ -296,9 +311,9 @@ func (m model) cmdDone(args []string) tea.Cmd {
 				lines = append(lines, m.th.StatusErr.Render("  ✗ "+err.Error()))
 				continue
 			}
-			lines = append(lines, m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d concluída", id)))
+			lines = append(lines, m.th.Accent.Render(m.lang.Tf("status.taskDone", id)))
 			if next != nil {
-				lines = append(lines, m.th.Dim.Render(fmt.Sprintf("    ↻ recorrência: tarefa %d vence %s", next.ID, next.Due.Format("02/01"))))
+				lines = append(lines, m.th.Dim.Render(m.lang.Tf("status.recur", next.ID, next.Due.Format("02/01"))))
 			}
 		}
 		return resultMsg{lines: lines, reload: true}
@@ -317,7 +332,7 @@ func (m model) cmdDel(args []string) tea.Cmd {
 				lines = append(lines, m.th.StatusErr.Render("  ✗ "+err.Error()))
 				continue
 			}
-			lines = append(lines, m.th.Dim.Render(fmt.Sprintf("  tarefa %d deletada (undo desfaz)", id)))
+			lines = append(lines, m.th.Dim.Render(m.lang.Tf("status.taskDeletedUndo", id)))
 		}
 		return resultMsg{lines: lines, reload: true}
 	}
@@ -326,11 +341,11 @@ func (m model) cmdDel(args []string) tea.Cmd {
 func (m model) cmdNote(args []string) tea.Cmd {
 	return func() tea.Msg {
 		if len(args) < 1 {
-			return errResult(m.th, "uso: note <id> [texto]")
+			return errResult(m.th, m.lang.T("usage.note"))
 		}
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
-			return errResult(m.th, "id inválido: "+args[0])
+			return errResult(m.th, m.lang.Tf("err.idInvalid", args[0]))
 		}
 		t, err := m.store.GetTask(id)
 		if err != nil {
@@ -343,18 +358,18 @@ func (m model) cmdNote(args []string) tea.Cmd {
 		if _, err := m.store.AddNote(id, body); err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Accent.Render(fmt.Sprintf("  ✓ nota adicionada à tarefa %d", id))}}
+		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.noteAdded", id))}}
 	}
 }
 
 func (m model) cmdEdit(args []string) tea.Cmd {
 	return func() tea.Msg {
 		if len(args) < 2 {
-			return errResult(m.th, "uso: edit <id> <campos>  (ex: edit 5 prio:H due:sex novo título)")
+			return errResult(m.th, m.lang.T("usage.edit"))
 		}
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
-			return errResult(m.th, "id inválido: "+args[0])
+			return errResult(m.th, m.lang.Tf("err.idInvalid", args[0]))
 		}
 		t, err := m.store.GetTask(id)
 		if err != nil {
@@ -390,18 +405,18 @@ func (m model) cmdEdit(args []string) tea.Cmd {
 		if err := m.store.UpdateTask(t); err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d atualizada", id))}, reload: true}
+		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.taskUpdated", id))}, reload: true}
 	}
 }
 
 func (m model) cmdMove(args []string) tea.Cmd {
 	return func() tea.Msg {
 		if len(args) < 2 {
-			return errResult(m.th, "uso: move <id> pro:projeto [sub:idPai]  (sub:0 vira raiz)")
+			return errResult(m.th, m.lang.T("usage.move"))
 		}
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
-			return errResult(m.th, "id inválido: "+args[0])
+			return errResult(m.th, m.lang.Tf("err.idInvalid", args[0]))
 		}
 		t, err := m.store.GetTask(id)
 		if err != nil {
@@ -418,13 +433,13 @@ func (m model) cmdMove(args []string) tea.Cmd {
 			case strings.HasPrefix(a, "sub:"):
 				p, perr := strconv.ParseInt(a[4:], 10, 64)
 				if perr != nil {
-					return errResult(m.th, "sub: espera um id numérico (ou 0)")
+					return errResult(m.th, m.lang.T("err.subNumeric"))
 				}
 				newParent, setParent = p, true
 			}
 		}
 		if !setProject && !setParent {
-			return errResult(m.th, "nada a mover: informe pro: e/ou sub:")
+			return errResult(m.th, m.lang.T("err.nothingToMove"))
 		}
 		if setParent {
 			if newParent != 0 {
@@ -437,7 +452,7 @@ func (m model) cmdMove(args []string) tea.Cmd {
 		if err := m.store.UpdateTask(t); err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d movida", id))}, reload: true}
+		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.taskMoved", id))}, reload: true}
 	}
 }
 
@@ -448,10 +463,10 @@ func (m model) cmdContext(args []string) tea.Cmd {
 		if len(args) == 0 {
 			name, _ := m.store.ActiveContext()
 			if name == "" {
-				return resultMsg{lines: []string{th.Dim.Render("  nenhum contexto ativo  (context <nome> ativa · context list mostra)")}}
+				return resultMsg{lines: []string{th.Dim.Render(m.lang.T("ctx.noneActive"))}}
 			}
 			tokens, _ := m.store.ContextTokens(name)
-			return resultMsg{lines: []string{th.Text.Render("  contexto ativo: "+name) + th.Dim.Render("  ("+tokens+")")}}
+			return resultMsg{lines: []string{th.Text.Render(m.lang.T("ctx.activeLabel")+name) + th.Dim.Render("  ("+tokens+")")}}
 		}
 		switch args[0] {
 		case "list", "ls":
@@ -460,7 +475,7 @@ func (m model) cmdContext(args []string) tea.Cmd {
 				return errResult(th, err.Error())
 			}
 			if len(ctxs) == 0 {
-				return resultMsg{lines: []string{th.Dim.Render("  nenhum contexto definido")}}
+				return resultMsg{lines: []string{th.Dim.Render(m.lang.T("ctx.noneDefined"))}}
 			}
 			active, _ := m.store.ActiveContext()
 			names := make([]string, 0, len(ctxs))
@@ -479,7 +494,7 @@ func (m model) cmdContext(args []string) tea.Cmd {
 			return resultMsg{lines: lines}
 		case "define", "def":
 			if len(args) < 3 {
-				return errResult(th, "uso: context define <nome> <tokens>")
+				return errResult(th, m.lang.T("usage.ctxDefine"))
 			}
 			name := args[1]
 			if _, _, _, e := task.ParseTokens(args[2:], time.Now()); e != nil {
@@ -489,20 +504,20 @@ func (m model) cmdContext(args []string) tea.Cmd {
 			if err := m.store.DefineContext(name, tokens); err != nil {
 				return errResult(th, err.Error())
 			}
-			return resultMsg{lines: []string{th.Accent.Render(fmt.Sprintf("  ✓ contexto %s: %s", name, tokens))}}
+			return resultMsg{lines: []string{th.Accent.Render(m.lang.Tf("status.ctxDefine", name, tokens))}}
 		case "none", "off":
 			if err := m.store.SetActiveContext(""); err != nil {
 				return errResult(th, err.Error())
 			}
-			return resultMsg{lines: []string{th.Dim.Render("  contexto desativado")}}
+			return resultMsg{lines: []string{th.Dim.Render(m.lang.T("ctx.deactivated"))}}
 		case "delete", "del", "rm":
 			if len(args) < 2 {
-				return errResult(th, "uso: context delete <nome>")
+				return errResult(th, m.lang.T("usage.ctxDelete"))
 			}
 			if err := m.store.DeleteContext(args[1]); err != nil {
 				return errResult(th, err.Error())
 			}
-			return resultMsg{lines: []string{th.Dim.Render("  contexto " + args[1] + " removido")}}
+			return resultMsg{lines: []string{th.Dim.Render(m.lang.Tf("ctx.removed", args[1]))}}
 		default:
 			name := args[0]
 			ctxs, err := m.store.Contexts()
@@ -510,12 +525,12 @@ func (m model) cmdContext(args []string) tea.Cmd {
 				return errResult(th, err.Error())
 			}
 			if _, ok := ctxs[name]; !ok {
-				return errResult(th, fmt.Sprintf("contexto %q não definido (context define %s <tokens>)", name, name))
+				return errResult(th, m.lang.Tf("err.ctxUndefined", name, name))
 			}
 			if err := m.store.SetActiveContext(name); err != nil {
 				return errResult(th, err.Error())
 			}
-			return resultMsg{lines: []string{th.Accent.Render("  ✓ contexto ativo: " + name)}}
+			return resultMsg{lines: []string{th.Accent.Render(m.lang.Tf("status.ctxActive", name))}}
 		}
 	}
 }
@@ -539,11 +554,11 @@ func (m model) cmdStartStop(args []string, start bool) tea.Cmd {
 				lines = append(lines, m.th.StatusErr.Render("  ✗ "+e.Error()))
 				continue
 			}
-			verb := "iniciada"
+			key := "status.taskStarted"
 			if !start {
-				verb = "parada"
+				key = "status.taskStopped"
 			}
-			lines = append(lines, m.th.Accent.Render(fmt.Sprintf("  ✓ tarefa %d %s", id, verb)))
+			lines = append(lines, m.th.Accent.Render(m.lang.Tf(key, id)))
 		}
 		return resultMsg{lines: lines, reload: true}
 	}
@@ -555,7 +570,7 @@ func (m model) cmdUndo() tea.Cmd {
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Accent.Render("  ✓ desfeito: " + desc)}, reload: true}
+		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.undone", desc))}, reload: true}
 	}
 }
 
@@ -565,7 +580,7 @@ func (m model) cmdRedo() tea.Cmd {
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Accent.Render("  ✓ refeito: " + desc)}, reload: true}
+		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.redone", desc))}, reload: true}
 	}
 }
 
@@ -575,7 +590,7 @@ func (m model) cmdPurge() tea.Cmd {
 		if err != nil {
 			return errResult(m.th, err.Error())
 		}
-		return resultMsg{lines: []string{m.th.Dim.Render(fmt.Sprintf("  %d tarefa(s) removida(s) definitivamente", n))}, reload: true}
+		return resultMsg{lines: []string{m.th.Dim.Render(m.lang.Tf("status.purged", n))}, reload: true}
 	}
 }
 
@@ -634,29 +649,16 @@ func sortedBoolKeys(m map[string]bool) []string {
 	return out
 }
 
-func helpLines(th ui.Theme) []string {
-	rows := [][2]string{
-		{"add <título> [tokens]", "cria tarefa (pro:x +tag due:sex prio:H wait:3d recur:weekly sub:N)"},
-		{"sub <pai> <título>", "cria subtarefa sob <pai>"},
-		{"list [tokens]", "abre a lista navegável (setas, ←→ recolhe, a add filho, enter abre)"},
-		{"next · overdue · today · week · waiting · active", "reports (aceitam tokens: next pro:work)"},
-		{"done <ids>", "conclui — ids: 1  1,5  1-3"},
-		{"start/stop <ids>", "marca em andamento (urgência sobe, ▶)"},
-		{"del <ids>", "deleta (undo desfaz)"},
-		{"note <id> [texto]", "adiciona nota (sem texto abre o campo)"},
-		{"edit <id> <tokens>", "altera campos (+tag adiciona, -tag remove)"},
-		{"move <id> pro:x sub:N", "muda projeto/pai"},
-		{"context [nome|none|list|define …]", "filtro default salvo (nocontext ignora)"},
-		{"filtros", "+tag -tag pro:x due:x prio:H status:done all"},
-		{"undo · redo", "desfaz · refaz a última operação"},
-		{"/theme [nome]", "tema: dark, borland, green, amber"},
-		{"/sort [modo]", "ordenação: urgency, due, created"},
-		{"/clear", "limpa a tela"},
-		{"/help · /quit", "ajuda · sair (Ctrl+D)"},
+func helpLines(th ui.Theme, lang i18n.Lang) []string {
+	keys := []string{
+		"help.add", "help.sub", "help.list", "help.reports", "help.done",
+		"help.startstop", "help.del", "help.note", "help.edit", "help.move",
+		"help.context", "help.filters", "help.undoredo", "help.theme",
+		"help.sort", "help.lang", "help.clear", "help.quit",
 	}
-	lines := []string{th.TitleFocus.Render("  TaskFrame — comandos")}
-	for _, r := range rows {
-		lines = append(lines, "  "+th.Accent.Render(ui.PadRowPlain(r[0], 22))+th.Dim.Render(r[1]))
+	lines := []string{th.TitleFocus.Render(lang.T("help.title"))}
+	for _, k := range keys {
+		lines = append(lines, "  "+th.Accent.Render(ui.PadRowPlain(lang.T(k+".k"), 22))+th.Dim.Render(lang.T(k+".v")))
 	}
 	return lines
 }
