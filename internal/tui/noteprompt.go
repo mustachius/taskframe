@@ -6,23 +6,25 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 )
 
 // NotePrompt is a one-line input for adding a note to a task.
 type NotePrompt struct {
+	lang      i18n.Lang
 	taskID    int64
 	taskTitle string
 	input     textinput.Model
 }
 
-func NewNotePrompt(taskID int64, taskTitle string) *NotePrompt {
+func NewNotePrompt(lang i18n.Lang, taskID int64, taskTitle string) *NotePrompt {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 500
 	ti.Width = 50
 	ti.Cursor.SetMode(cursor.CursorStatic)
 	ti.Focus()
-	return &NotePrompt{taskID: taskID, taskTitle: taskTitle, input: ti}
+	return &NotePrompt{lang: lang, taskID: taskID, taskTitle: taskTitle, input: ti}
 }
 
 func (n *NotePrompt) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -52,11 +54,11 @@ func (n *NotePrompt) View(th Theme, w, h int) string {
 		" " + th.Dim.Render(truncRunes(n.taskTitle, 50)),
 		" " + th.Text.Render(n.input.View()),
 		"",
-		" " + th.Dim.Render("Enter salva · Esc cancela"),
+		" " + th.Dim.Render(n.lang.T("notePrompt.footer")),
 	}
 	bw := 58
 	if bw > w-4 {
 		bw = w - 4
 	}
-	return drawBox(th, "Nova nota", lines, bw, len(lines)+3, true)
+	return drawBox(th, n.lang.T("notePrompt.title"), lines, bw, len(lines)+3, true)
 }

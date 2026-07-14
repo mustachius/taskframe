@@ -16,6 +16,7 @@ import (
 type Config struct {
 	Theme   string             `json:"theme,omitempty"`   // default theme (below runtime settings)
 	Sort    string             `json:"sort,omitempty"`    // default sort mode
+	Lang    string             `json:"lang,omitempty"`    // default UI language (en, pt-br)
 	Urgency map[string]float64 `json:"urgency,omitempty"` // urgency coefficient overrides
 }
 

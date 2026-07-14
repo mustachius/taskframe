@@ -106,12 +106,12 @@ func TestMainFrameLayout(t *testing.T) {
 
 	for _, want := range []string{
 		"╔", "╗", "╚", "╝", "║", // NC double borders
-		"Projetos", "(todas)",
+		"Projects", "(all)",
 		"casa", "mercado", "trabalho",
 		"Comprar leite", "Revisar relatório", "Escrever testes",
-		"Concluídas", "Deletadas",
-		"Ajuda", "Sair", // fkey bar
-		"4 tarefa(s)",
+		"Completed", "Deleted",
+		"Help", "Quit", // fkey bar
+		"4 task(s)",
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("frame missing %q", want)
@@ -131,7 +131,7 @@ func TestAddTaskViaForm(t *testing.T) {
 
 	m = drive(t, m, key("f2")) // open form
 	frame := stripANSI(m.View())
-	if !strings.Contains(frame, "Nova tarefa") {
+	if !strings.Contains(frame, "New task") {
 		t.Fatalf("expected form modal, got frame:\n%s", frame)
 	}
 	m = typeText(t, m, "Tarefa via TUI")
@@ -158,7 +158,7 @@ func TestNavigateAndComplete(t *testing.T) {
 	// complete the task under the cursor (urgency puts "Comprar leite" first)
 	m = drive(t, m, key("d"))
 	frame := stripANSI(m.View())
-	if !strings.Contains(frame, "concluída") {
+	if !strings.Contains(frame, "completed") {
 		t.Errorf("expected completion status message, frame:\n%s", frame)
 	}
 	pend, _ := s.List(task.Filter{})
@@ -177,7 +177,7 @@ func TestNavigateAndComplete(t *testing.T) {
 	m = drive(t, m, key("tab"))
 	m = drive(t, m, key("down"))
 	frame = stripANSI(m.View())
-	if !strings.Contains(frame, "Tarefas: casa") {
+	if !strings.Contains(frame, "Tasks: casa") {
 		t.Errorf("expected list filtered by project casa, frame:\n%s", frame)
 	}
 }
@@ -233,10 +233,10 @@ func driveSidebarTo(t *testing.T, m tea.Model, a *App, title string) tea.Model {
 	if a.focus != focusSidebar {
 		m = drive(t, m, key("tab"))
 	}
-	for i := 0; i < 30 && a.sidebar.Title() != title; i++ {
+	for i := 0; i < 30 && a.sidebar.Title(a.lang) != title; i++ {
 		m = drive(t, m, key("down"))
 	}
-	if a.sidebar.Title() != title {
+	if a.sidebar.Title(a.lang) != title {
 		t.Fatalf("could not reach sidebar item %q", title)
 	}
 	return m
@@ -258,7 +258,7 @@ func TestVirtualFilters(t *testing.T) {
 		t.Error("waiting task should be hidden in default view")
 	}
 
-	m = driveSidebarTo(t, m, a, "Atrasadas")
+	m = driveSidebarTo(t, m, a, "Overdue")
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "conta atrasada") {
 		t.Errorf("overdue filter should show the overdue task, frame:\n%s", frame)
@@ -267,13 +267,13 @@ func TestVirtualFilters(t *testing.T) {
 		t.Error("overdue filter should not show a task due in 2 days")
 	}
 
-	m = driveSidebarTo(t, m, a, "Aguardando")
+	m = driveSidebarTo(t, m, a, "Waiting")
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "viagem futura") {
 		t.Errorf("waiting filter should show the waiting task, frame:\n%s", frame)
 	}
 
-	m = driveSidebarTo(t, m, a, "Tarefas: +urgente")
+	m = driveSidebarTo(t, m, a, "Tasks: +urgente")
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "Comprar leite") {
 		t.Error("tag filter should show the tagged task")
@@ -292,7 +292,7 @@ func TestMoveDialog(t *testing.T) {
 	moved := a.list.CursorTask()
 	m = drive(t, m, key("m"))
 	frame := stripANSI(m.View())
-	if !strings.Contains(frame, "Mover tarefa") {
+	if !strings.Contains(frame, "Move task") {
 		t.Fatalf("expected move modal, frame:\n%s", frame)
 	}
 	m = drive(t, m, key("ctrl+u")) // clear prefilled project
@@ -365,14 +365,14 @@ func TestDetailAndHelp(t *testing.T) {
 
 	m = drive(t, m, key("enter")) // detail of cursor task
 	frame := stripANSI(m.View())
-	if !strings.Contains(frame, "Histórico") || !strings.Contains(frame, "criada:") {
+	if !strings.Contains(frame, "History") || !strings.Contains(frame, "created:") {
 		t.Errorf("expected detail with activity log, frame:\n%s", frame)
 	}
 	m = drive(t, m, key("esc"))
 
 	m = drive(t, m, key("?"))
 	frame = stripANSI(m.View())
-	if !strings.Contains(frame, "alterna entre painéis") {
+	if !strings.Contains(frame, "switch panels") {
 		t.Error("expected help modal")
 	}
 }

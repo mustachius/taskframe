@@ -1,12 +1,21 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/jvsaga/taskframe/internal/i18n"
+)
 
 type fkey struct{ num, label string }
 
-var mainKeys = []fkey{
-	{"1", "Ajuda"}, {"2", "Add"}, {"3", "Ver"}, {"4", "Edit"}, {"5", "Nota"},
-	{"6", "Mover"}, {"7", "Busca"}, {"8", "Del"}, {"9", "Done"}, {"10", "Sair"},
+// mainKeys returns the classic bottom-bar chips localized for lang.
+func mainKeys(lang i18n.Lang) []fkey {
+	return []fkey{
+		{"1", lang.T("fkey.help")}, {"2", lang.T("fkey.add")}, {"3", lang.T("fkey.view")},
+		{"4", lang.T("fkey.edit")}, {"5", lang.T("fkey.note")}, {"6", lang.T("fkey.move")},
+		{"7", lang.T("fkey.search")}, {"8", lang.T("fkey.del")}, {"9", lang.T("fkey.done")},
+		{"10", lang.T("fkey.quit")},
+	}
 }
 
 // renderFKeyBar draws the classic NC bottom bar: white number on black,

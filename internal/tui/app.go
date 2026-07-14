@@ -2,13 +2,13 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 )
@@ -33,11 +33,13 @@ type Options struct {
 	ThemeName string
 	ASCII     bool
 	SortMode  task.SortMode
+	Lang      i18n.Lang
 }
 
 type App struct {
 	store *store.Store
 	th    Theme
+	lang  i18n.Lang
 	ascii bool
 
 	sortMode task.SortMode
@@ -68,13 +70,14 @@ func Run(s *store.Store, opts Options) error {
 
 func newApp(s *store.Store, opts Options) *App {
 	search := textinput.New()
-	search.Prompt = "Busca: "
+	search.Prompt = opts.Lang.T("app.searchPrompt")
 	search.CharLimit = 100
 	search.Width = 40
 	search.Cursor.SetMode(cursor.CursorStatic)
 	return &App{
 		store:    s,
 		th:       NewTheme(opts.ThemeName, opts.ASCII),
+		lang:     opts.Lang,
 		ascii:    opts.ASCII,
 		sortMode: task.NormalizeSortMode(string(opts.SortMode)),
 		focus:    focusList,
@@ -190,11 +193,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case projectsLoadedMsg:
-		a.sidebar.SetCounts(msg.data)
+		a.sidebar.SetCounts(a.lang, msg.data)
 		return a, nil
 
 	case detailLoadedMsg:
-		a.modal = NewDetail(msg.t, msg.notes, msg.acts)
+		a.modal = NewDetail(a.lang, msg.t, msg.notes, msg.acts)
 		return a, nil
 
 	case formSubmittedMsg:
@@ -205,10 +208,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var what string
 			if msg.edit {
 				err = a.store.UpdateTask(&t)
-				what = fmt.Sprintf("tarefa %d atualizada", t.ID)
+				what = a.lang.Tf("app.taskUpdated", t.ID)
 			} else {
 				err = a.store.AddTask(&t)
-				what = fmt.Sprintf("tarefa %d criada", t.ID)
+				what = a.lang.Tf("app.taskCreated", t.ID)
 			}
 			if err != nil {
 				return errMsg{err}
@@ -222,7 +225,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if _, err := a.store.AddNote(msg.taskID, msg.body); err != nil {
 				return errMsg{err}
 			}
-			return statusMsg(fmt.Sprintf("nota adicionada à tarefa %d", msg.taskID))
+			return statusMsg(a.lang.Tf("app.noteAdded", msg.taskID))
 		}
 
 	case moveSubmittedMsg:
@@ -242,7 +245,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := a.store.UpdateTask(t); err != nil {
 				return errMsg{err}
 			}
-			return statusMsg(fmt.Sprintf("tarefa %d movida", msg.taskID))
+			return statusMsg(a.lang.Tf("app.taskMoved", msg.taskID))
 		}
 
 	case confirmResultMsg:
@@ -256,7 +259,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := a.store.DeleteTask(id); err != nil {
 				return errMsg{err}
 			}
-			return statusMsg(fmt.Sprintf("tarefa %d deletada (u desfaz)", id))
+			return statusMsg(a.lang.Tf("app.taskDeleted", id))
 		}
 
 	case modalCancelMsg:
@@ -301,7 +304,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 
 	case "f1", "?":
-		a.modal = &Help{}
+		a.modal = &Help{lang: a.lang}
 		return a, nil
 
 	case "tab":
@@ -369,30 +372,30 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case "f2", "a":
-		a.modal = NewForm(nil, 0, a.sidebar.CurrentProject())
+		a.modal = NewForm(a.lang, nil, 0, a.sidebar.CurrentProject())
 		return a, nil
 
 	case "s":
 		if t := a.list.CursorTask(); t != nil {
-			a.modal = NewForm(nil, t.ID, t.Project)
+			a.modal = NewForm(a.lang, nil, t.ID, t.Project)
 		}
 		return a, nil
 
 	case "f6", "m":
 		if t := a.list.CursorTask(); t != nil {
-			a.modal = NewMove(t.ID, t.Title, t.Project, t.ParentID)
+			a.modal = NewMove(a.lang, t.ID, t.Title, t.Project, t.ParentID)
 		}
 		return a, nil
 
 	case "f4", "e":
 		if t := a.list.CursorTask(); t != nil {
-			a.modal = NewForm(t, 0, "")
+			a.modal = NewForm(a.lang, t, 0, "")
 		}
 		return a, nil
 
 	case "f5", "n":
 		if t := a.list.CursorTask(); t != nil {
-			a.modal = NewNotePrompt(t.ID, t.Title)
+			a.modal = NewNotePrompt(a.lang, t.ID, t.Title)
 		}
 		return a, nil
 
@@ -402,7 +405,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "f8", "x", "delete":
 		if t := a.list.CursorTask(); t != nil {
 			a.pendingDelete = t.ID
-			a.modal = NewConfirm("Deletar", fmt.Sprintf("Deletar tarefa %d — %s?", t.ID, truncRunes(t.Title, 40)))
+			a.modal = NewConfirm(a.lang, a.lang.T("confirm.deleteTitle"), a.lang.Tf("confirm.deleteMsg", t.ID, truncRunes(t.Title, 40)))
 		}
 		return a, nil
 
@@ -418,7 +421,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				return errMsg{err}
 			}
-			return statusMsg("desfeito: " + desc)
+			return statusMsg(a.lang.Tf("app.undone", desc))
 		}
 
 	case "t":
@@ -428,7 +431,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err := a.store.SetSetting("theme", next); err != nil {
 				return errMsg{err}
 			}
-			return statusMsg("tema: " + next)
+			return statusMsg(a.lang.Tf("app.theme", next))
 		}
 
 	case "o":
@@ -440,7 +443,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err := a.store.SetSetting("sort", string(mode)); err != nil {
 				return errMsg{err}
 			}
-			return statusMsg("ordenação: " + mode.Label())
+			return statusMsg(a.lang.Tf("app.sort", a.lang.T("sort."+string(mode))))
 		}
 
 	case "r":
@@ -471,17 +474,16 @@ func (a *App) toggleDone() (tea.Model, tea.Cmd) {
 				return errMsg{err}
 			}
 			if next != nil {
-				return statusMsg(fmt.Sprintf("tarefa %d concluída · recorrência criou %d (vence %s)",
-					id, next.ID, next.Due.Format("02/01")))
+				return statusMsg(a.lang.Tf("app.taskDoneRecur", id, next.ID, next.Due.Format("02/01")))
 			}
-			return statusMsg(fmt.Sprintf("tarefa %d concluída", id))
+			return statusMsg(a.lang.Tf("app.taskDone", id))
 		case task.StatusDone:
 			if err := a.store.ReopenTask(id); err != nil {
 				return errMsg{err}
 			}
-			return statusMsg(fmt.Sprintf("tarefa %d reaberta", id))
+			return statusMsg(a.lang.Tf("app.taskReopened", id))
 		}
-		return statusMsg("tarefa deletada — use u para restaurar")
+		return statusMsg(a.lang.T("app.taskDeletedRestore"))
 	}
 }
 
@@ -489,7 +491,7 @@ func (a *App) toggleDone() (tea.Model, tea.Cmd) {
 
 func (a *App) View() string {
 	if a.w < 60 || a.h < 12 {
-		return "Janela muito pequena para o taskframe (mín. 60x12).\nRedimensione o terminal ou pressione q para sair.\n"
+		return a.lang.T("app.windowSmall")
 	}
 
 	panelH := a.h - 2
@@ -498,17 +500,17 @@ func (a *App) View() string {
 	if a.modal != nil {
 		content := a.modal.View(a.th, a.w, panelH)
 		bg := lipglossPlace(a.th, content, a.w, panelH)
-		return bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys, a.w)
+		return bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
 	}
 
 	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, panelH-2, a.focus == focusSidebar)
-	listLines := a.list.Lines(a.th, listW-2, panelH-2, a.focus == focusList)
+	listLines := a.list.Lines(a.th, a.lang, listW-2, panelH-2, a.focus == focusList)
 
-	left := drawBox(a.th, "Projetos", sbLines, sidebarWidth, panelH, a.focus == focusSidebar)
-	right := drawBox(a.th, a.sidebar.Title(), listLines, listW, panelH, a.focus == focusList)
+	left := drawBox(a.th, a.lang.T("panel.projects"), sbLines, sidebarWidth, panelH, a.focus == focusSidebar)
+	right := drawBox(a.th, a.sidebar.Title(a.lang), listLines, listW, panelH, a.focus == focusList)
 
 	panels := joinHorizontal(left, right)
-	return panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys, a.w)
+	return panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
 }
 
 func (a *App) statusLine() string {
@@ -519,9 +521,9 @@ func (a *App) statusLine() string {
 	if a.statusErr {
 		style = a.th.StatusErr
 	}
-	info := fmt.Sprintf(" %d tarefa(s)", a.list.Count())
+	info := a.lang.Tf("app.taskCount", a.list.Count())
 	if a.filter.Text != "" {
-		info += fmt.Sprintf(" · busca: %q (F7 limpa)", a.filter.Text)
+		info += a.lang.Tf("app.searchInfo", a.filter.Text)
 	}
 	line := info
 	if a.status != "" {

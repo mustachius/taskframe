@@ -2,16 +2,18 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 )
 
 // Confirm is a yes/no dialog.
 type Confirm struct {
+	lang    i18n.Lang
 	title   string
 	message string
 }
 
-func NewConfirm(title, message string) *Confirm {
-	return &Confirm{title: title, message: message}
+func NewConfirm(lang i18n.Lang, title, message string) *Confirm {
+	return &Confirm{lang: lang, title: title, message: message}
 }
 
 func (c *Confirm) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -33,7 +35,7 @@ func (c *Confirm) View(th Theme, w, h int) string {
 		"",
 		" " + th.Text.Render(c.message),
 		"",
-		" " + th.TitleFocus.Render("[S]im") + th.Text.Render("   ") + th.Dim.Render("[N]ão (Esc)"),
+		" " + th.TitleFocus.Render(c.lang.T("confirm.yes")) + th.Text.Render("   ") + th.Dim.Render(c.lang.T("confirm.no")),
 	}
 	bw := len([]rune(c.message)) + 6
 	if bw < 30 {

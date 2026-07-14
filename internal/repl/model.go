@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 	"github.com/jvsaga/taskframe/internal/ui"
@@ -30,6 +31,7 @@ const (
 type model struct {
 	store *store.Store
 	th    ui.Theme
+	lang  i18n.Lang
 	ascii bool
 	sort  task.SortMode
 
@@ -77,7 +79,7 @@ type model struct {
 func newModel(s *store.Store, opts Options) model {
 	in := textinput.New()
 	in.Prompt = promptGlyph
-	in.Placeholder = "add tarefa… · list · /help"
+	in.Placeholder = opts.Lang.T("prompt.placeholder")
 	in.CharLimit = 500
 	in.Cursor.SetMode(cursor.CursorStatic)
 	in.Focus()
@@ -85,6 +87,7 @@ func newModel(s *store.Store, opts Options) model {
 	return model{
 		store:    s,
 		th:       ui.NewTheme(opts.ThemeName, opts.ASCII),
+		lang:     opts.Lang,
 		ascii:    opts.ASCII,
 		sort:     task.NormalizeSortMode(string(opts.SortMode)),
 		w:        80,
@@ -141,7 +144,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.noteTarget = msg.id
 		m.noteTitle = msg.title
 		ni := textinput.New()
-		ni.Prompt = "nota› "
+		ni.Prompt = m.lang.T("note.promptGlyph")
 		ni.CharLimit = 500
 		ni.Cursor.SetMode(cursor.CursorStatic)
 		ni.Width = max(10, m.w-10)
@@ -152,7 +155,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case detailLoadedMsg:
 		m.detail = msg.t
-		m.detailLines = detailBlock(m.th, msg.t, msg.parent, msg.children, msg.notes, msg.acts, m.w-6)
+		m.detailLines = detailBlock(m.th, m.lang, msg.t, msg.parent, msg.children, msg.notes, msg.acts, m.w-6)
 		m.detailScroll = 0
 		m.mode = modeDetail
 		return m, nil
@@ -214,19 +217,19 @@ func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "ctrl+c":
 		m.mode = modePrompt
-		return m, m.emit(m.th.Dim.Render("  (nota cancelada)"))
+		return m, m.emit(m.th.Dim.Render(m.lang.T("note.cancelled")))
 	case "enter":
 		body := strings.TrimSpace(m.noteInput.Value())
 		m.mode = modePrompt
 		if body == "" {
-			return m, m.emit(m.th.Dim.Render("  (nota vazia, ignorada)"))
+			return m, m.emit(m.th.Dim.Render(m.lang.T("note.empty")))
 		}
 		id := m.noteTarget
 		return m, m.storeCmd(func() resultMsg {
 			if _, err := m.store.AddNote(id, body); err != nil {
 				return resultMsg{lines: []string{m.th.StatusErr.Render("✗ " + err.Error())}}
 			}
-			return resultMsg{lines: []string{m.th.Accent.Render("  ✓ nota adicionada à tarefa " + itoa(id))}}
+			return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.noteAdded", id))}}
 		})
 	}
 	var cmd tea.Cmd
@@ -240,7 +243,7 @@ func (m model) startAddChild(t *task.Task) model {
 	m.addParent = t.ID
 	m.addTitle = t.Title
 	ci := textinput.New()
-	ci.Prompt = "filho› "
+	ci.Prompt = m.lang.T("child.promptGlyph")
 	ci.CharLimit = 500
 	ci.Cursor.SetMode(cursor.CursorStatic)
 	ci.Width = max(10, m.w-10)
@@ -290,13 +293,13 @@ func (m model) View() string {
 	case modeDetail:
 		return m.viewDetail()
 	case modeNote:
-		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), "nota · "+ui.TruncRunes(m.noteTitle, 30),
-			[]string{" " + m.noteInput.View(), m.th.Dim.Render(" enter salva · esc cancela")},
+		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.lang.T("note.boxTitle")+ui.TruncRunes(m.noteTitle, 30),
+			[]string{" " + m.noteInput.View(), m.th.Dim.Render(m.lang.T("note.boxHint"))},
 			min(m.w, 60), 4, true)
 		return box
 	case modeAddChild:
-		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), "filho de · "+ui.TruncRunes(m.addTitle, 30),
-			[]string{" " + m.addInput.View(), m.th.Dim.Render(" enter cria · esc cancela")},
+		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.lang.T("child.boxTitle")+ui.TruncRunes(m.addTitle, 30),
+			[]string{" " + m.addInput.View(), m.th.Dim.Render(m.lang.T("child.boxHint"))},
 			min(m.w, 60), 4, true)
 		return box
 	default:

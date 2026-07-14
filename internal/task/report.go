@@ -23,23 +23,25 @@ func EndOfDay(t time.Time) time.Time {
 }
 
 var reports = map[string]Report{
+	// Descriptions are the canonical English text; UI layers localize via the
+	// i18n catalog key "report.<name>".
 	"next": {
-		Name: "next", Description: "pendências mais urgentes",
+		Name: "next", Description: "most urgent pending",
 		Build: func(now time.Time) Filter { return Filter{HideWaiting: true} },
 		Sort:  SortUrgency, Limit: 15,
 	},
 	"overdue": {
-		Name: "overdue", Description: "vencidas",
+		Name: "overdue", Description: "overdue",
 		Build: func(now time.Time) Filter { n := now; return Filter{DueBefore: &n, HideWaiting: true} },
 		Sort:  SortDue,
 	},
 	"today": {
-		Name: "today", Description: "vencem até hoje",
+		Name: "today", Description: "due today",
 		Build: func(now time.Time) Filter { d := EndOfDay(now); return Filter{DueBefore: &d, HideWaiting: true} },
 		Sort:  SortDue,
 	},
 	"week": {
-		Name: "week", Description: "próximos 7 dias",
+		Name: "week", Description: "next 7 days",
 		Build: func(now time.Time) Filter {
 			d := EndOfDay(now.AddDate(0, 0, 7))
 			return Filter{DueBefore: &d, HideWaiting: true}
@@ -47,12 +49,12 @@ var reports = map[string]Report{
 		Sort: SortDue,
 	},
 	"waiting": {
-		Name: "waiting", Description: "aguardando (wait futuro)",
+		Name: "waiting", Description: "waiting (future wait)",
 		Build: func(now time.Time) Filter { return Filter{WaitingOnly: true} },
 		Sort:  SortDue,
 	},
 	"active": {
-		Name: "active", Description: "em andamento (iniciadas)",
+		Name: "active", Description: "in progress (started)",
 		Build: func(now time.Time) Filter { return Filter{ActiveOnly: true} },
 		Sort:  SortUrgency,
 	},

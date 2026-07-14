@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jvsaga/taskframe/internal/i18n"
 	"github.com/jvsaga/taskframe/internal/store"
 	"github.com/jvsaga/taskframe/internal/task"
 	"github.com/jvsaga/taskframe/internal/ui"
@@ -14,6 +15,7 @@ type Options struct {
 	ThemeName string
 	ASCII     bool
 	SortMode  task.SortMode
+	Lang      i18n.Lang
 }
 
 // Run starts the inline REPL. The banner is printed once as ordinary output;
@@ -21,7 +23,7 @@ type Options struct {
 // terminal's real scrollback while the prompt stays pinned at the bottom.
 func Run(s *store.Store, opts Options) error {
 	th := ui.NewTheme(opts.ThemeName, opts.ASCII)
-	fmt.Print("\n" + Banner(th, opts.ASCII) + "\n" + Hint(th) + "\n\n")
+	fmt.Print("\n" + Banner(th, opts.ASCII, opts.Lang) + "\n" + Hint(th, opts.Lang) + "\n\n")
 
 	p := tea.NewProgram(newModel(s, opts))
 	_, err := p.Run()
