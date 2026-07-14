@@ -25,6 +25,8 @@ func padRow(s string, w int, base lipgloss.Style) string { return ui.PadRow(s, w
 
 func progressBar(frac float64, w int, th Theme) string { return ui.ProgressBar(frac, w, th) }
 
+func renderMarkdown(md string, w int, ascii bool) string { return ui.RenderMarkdown(md, w, ascii) }
+
 func drawBox(th Theme, title string, lines []string, w, h int, focused bool) string {
 	return ui.DrawBox(th, title, lines, w, h, focused)
 }

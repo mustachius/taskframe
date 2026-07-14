@@ -43,6 +43,7 @@ var catalog = map[string][2]string{
 	"usage.add":           {"usage: add <title> [pro:x +tag due:x prio:H sub:N]", "uso: add <título> [pro:x +tag due:x prio:H sub:N]"},
 	"usage.sub":           {"usage: sub <parent> <title> [pro:x +tag due:x prio:H]", "uso: sub <pai> <título> [pro:x +tag due:x prio:H]"},
 	"usage.note":          {"usage: note <id> [text]", "uso: note <id> [texto]"},
+	"usage.read":          {"usage: read <id>", "uso: read <id>"},
 	"usage.edit":          {"usage: edit <id> <fields>  (e.g. edit 5 prio:H due:fri new title)", "uso: edit <id> <campos>  (ex: edit 5 prio:H due:sex novo título)"},
 	"usage.move":          {"usage: move <id> pro:project [sub:parentId]  (sub:0 = root)", "uso: move <id> pro:projeto [sub:idPai]  (sub:0 vira raiz)"},
 	"err.titleEmpty":      {"empty title", "título vazio"},
@@ -330,6 +331,11 @@ tokens (add e list):
 	"detail.titleTui":  {"Task %d", "Tarefa %d"},
 	"detail.footerTui": {"↑↓ scroll · Esc closes", "↑↓ rola · Esc fecha"},
 
+	// --- read (markdown) view ---
+	"read.noNotes": {"_No notes yet._", "_Sem notas ainda._"},
+	"help.read.k":  {"read <id>", "read <id>"},
+	"help.read.v":  {"render the task's notes as markdown", "renderiza as notas da tarefa em markdown"},
+
 	// --- TUI sidebar ---
 	"sb.all":         {"(all)", "(todas)"},
 	"sb.today":       {"Today", "Hoje"},
@@ -361,6 +367,7 @@ tokens (add e list):
 	"tuihelp.move.v":    {"move the cursor", "move o cursor"},
 	"tuihelp.fold.v":    {"collapse / expand subtasks", "recolhe / expande subtarefas"},
 	"tuihelp.detail.v":  {"view details (notes + history)", "ver detalhes (notas + histórico)"},
+	"tuihelp.read.v":    {"read notes as markdown", "ler notas como markdown"},
 	"tuihelp.new.v":     {"new task", "nova tarefa"},
 	"tuihelp.newsub.v":  {"new subtask under the cursor", "nova subtarefa sob o cursor"},
 	"tuihelp.edit.v":    {"edit task", "editar tarefa"},
