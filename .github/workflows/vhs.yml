@@ -43,6 +43,13 @@ jobs:
           go install ./cmd/taskframe
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Render demo
+        # charmbracelet/vhs-action set these two so lipgloss/termenv renders
+        # true colors: GitHub sets CI=true, which makes termenv ignore ANSI
+        # (degrading the gradient logo to grayscale), and COLORTERM=truecolor
+        # enables full-color output. We replicate that here.
+        env:
+          CI: ""
+          COLORTERM: truecolor
         run: vhs demo.tape
       - name: Commit demo.gif
         uses: stefanzweifel/git-auto-commit-action@v5
