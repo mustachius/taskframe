@@ -107,7 +107,7 @@ var catalog = map[string][2]string{
 	"act.created": {"created: ", "criada: "},
 	"act.done":    {"completed", "concluída"},
 	"act.deleted": {"deleted", "deletada"},
-	"act.note":    {"note: ", "nota: "},
+	"act.note":    {"note added", "nota adicionada"},
 	"act.setTo":   {"%s set: %s", "%s definido: %s"},
 	"act.changed": {"%s: %s → %s", "%s: %s → %s"},
 

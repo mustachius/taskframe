@@ -141,7 +141,7 @@ func actDesc(lang i18n.Lang, a task.Activity) string {
 	case "delete":
 		return lang.T("act.deleted")
 	case "note":
-		return lang.T("act.note") + a.NewVal
+		return lang.T("act.note")
 	case "modify":
 		if a.OldVal == "" {
 			return lang.Tf("act.setTo", a.Field, a.NewVal)
