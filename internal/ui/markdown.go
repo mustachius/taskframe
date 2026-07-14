@@ -37,6 +37,12 @@ func RenderMarkdown(md string, width int, ascii bool) string {
 		// on glamour's own auto-detection can fall back to no color and leave
 		// literal ** markers in the output.
 		prof := lipgloss.ColorProfile()
+		if !ascii && prof == termenv.Ascii {
+			// The rest of the UI (gradient, boxes) is clearly rendering in color,
+			// so a fallback to Ascii here is almost certainly a detection miss;
+			// use truecolor so notes actually render styled.
+			prof = termenv.TrueColor
+		}
 		style := "dark"
 		if ascii || prof == termenv.Ascii {
 			style = "notty"

@@ -216,7 +216,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case detailLoadedMsg:
-		a.modal = NewDetail(a.lang, a.reduceMotion, msg.t, msg.children, msg.notes, msg.acts)
+		a.modal = NewDetail(a.lang, a.ascii, a.reduceMotion, msg.t, msg.children, msg.notes, msg.acts)
 		return a, nil
 
 	case readLoadedMsg:

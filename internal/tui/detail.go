@@ -11,6 +11,7 @@ import (
 // Detail shows a task's fields, subtasks, notes and full activity log.
 type Detail struct {
 	lang     i18n.Lang
+	ascii    bool
 	t        *task.Task
 	children []*task.Task
 	notes    []task.Note
@@ -18,8 +19,8 @@ type Detail struct {
 	sc       scroller
 }
 
-func NewDetail(lang i18n.Lang, reduceMotion bool, t *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity) *Detail {
-	return &Detail{lang: lang, t: t, children: children, notes: notes, acts: acts, sc: newScroller(reduceMotion)}
+func NewDetail(lang i18n.Lang, ascii, reduceMotion bool, t *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity) *Detail {
+	return &Detail{lang: lang, ascii: ascii, t: t, children: children, notes: notes, acts: acts, sc: newScroller(reduceMotion)}
 }
 
 func (d *Detail) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -96,9 +97,20 @@ func (d *Detail) View(th Theme, w, h int) string {
 	if len(d.notes) > 0 {
 		add("")
 		add(" " + th.TitleFocus.Render(d.lang.T("detail.notes")))
+		var nb strings.Builder
 		for _, n := range d.notes {
-			add(" " + th.Dim.Render(n.CreatedAt.Format("02/01 15:04")+" ") +
-				th.Text.Render(truncRunes(n.Body, w-20)))
+			nb.WriteString("**" + n.CreatedAt.Format("02/01 15:04") + "** — " + n.Body + "\n\n")
+		}
+		mw := w - 10
+		if mw > 74 {
+			mw = 74
+		}
+		if mw < 10 {
+			mw = 10
+		}
+		md := renderMarkdown(nb.String(), mw, d.ascii)
+		for _, ln := range strings.Split(strings.TrimRight(md, "\n"), "\n") {
+			add(ln)
 		}
 	}
 

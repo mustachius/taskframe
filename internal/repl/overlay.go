@@ -223,7 +223,7 @@ func (m model) viewDetail() string {
 
 // detailBlock formats a task's fields, parent, subtasks, notes and activity
 // for the detail view.
-func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity, w int) []string {
+func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity, w int, ascii bool) []string {
 	label := func(s string) string { return th.Dim.Render(ui.PadRowPlain(s, 16)) }
 	val := func(s string) string { return th.Text.Render(s) }
 	var lines []string
@@ -278,8 +278,13 @@ func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*
 	}
 	if len(notes) > 0 {
 		add(" " + th.TitleFocus.Render(lang.T("detail.notes")))
+		var nb strings.Builder
 		for _, n := range notes {
-			add(" " + th.Dim.Render(n.CreatedAt.Format("02/01 15:04")+" ") + th.Text.Render(ui.TruncRunes(n.Body, w-16)))
+			nb.WriteString("**" + n.CreatedAt.Format("02/01 15:04") + "** — " + n.Body + "\n\n")
+		}
+		md := ui.RenderMarkdown(nb.String(), w-2, ascii)
+		for _, ln := range strings.Split(strings.TrimRight(md, "\n"), "\n") {
+			add(ln)
 		}
 	}
 	add(" " + th.TitleFocus.Render(lang.T("detail.history")))
