@@ -238,4 +238,4 @@ synchronously instead.
 
 ## License
 
-No license has been declared for this project yet.
+Released under the [MIT License](LICENSE). Copyright (c) 2026 Victor Sartor.
