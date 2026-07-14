@@ -1,10 +1,19 @@
 name: vhs
 
-# Renders demo.tape into demo.gif on a Linux runner (VHS needs ttyd/ffmpeg,
-# which the vhs-action provides) and commits the result back to the repo.
+# Renders demo.tape into demo.gif on a Linux runner and commits the result
+# back to the repo.
+#
+# We install ffmpeg + ttyd + VHS ourselves instead of using
+# charmbracelet/vhs-action@v2: that action's bundled ffmpeg installer is broken.
+# It looks for an "ffmpeg-n5.1 ... linux64-gpl-5.1.tar.xz" asset in the *latest*
+# BtbN/FFmpeg-Builds release, which no longer ships n5.1 builds, so it always
+# fails with "Failed to install ffmpeg". VHS itself downloads its headless
+# Chromium (via go-rod) on first run, so we only need ffmpeg + ttyd on PATH.
 on:
   push:
-    paths: [demo.tape]
+    paths:
+      - demo.tape
+      - .github/workflows/vhs.yml
   workflow_dispatch:
 
 permissions:
@@ -18,13 +27,23 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install taskframe on PATH
+      - name: Install ffmpeg
         run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Install ttyd
+        run: |
+          sudo curl -fsSL \
+            https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
+            -o /usr/local/bin/ttyd
+          sudo chmod +x /usr/local/bin/ttyd
+      - name: Install VHS and taskframe
+        run: |
+          go install github.com/charmbracelet/vhs@latest
           go install ./cmd/taskframe
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - uses: charmbracelet/vhs-action@v2
-        with:
-          path: demo.tape
+      - name: Render demo
+        run: vhs demo.tape
       - name: Commit demo.gif
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
