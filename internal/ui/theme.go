@@ -44,18 +44,28 @@ type palette struct {
 	statusFg    lipgloss.Color
 	statusBg    lipgloss.Color
 	statusErr   lipgloss.Color
+	mdStyle     string // glamour builtin style name for markdown rendering
 }
 
 // ThemeNames lists valid themes in cycle order.
-var ThemeNames = []string{"dark", "borland", "green", "amber"}
+var ThemeNames = []string{
+	"dark", "borland", "green", "amber",
+	"dracula", "catppuccin", "nord", "gruvbox", "solarized", "tokyonight",
+}
 
 // logoGradient holds the {from, to} hex endpoints used to color the startup
 // wordmark per theme. Mono themes ramp within their own hue to keep identity.
 var logoGradient = map[string][2]string{
-	"dark":    {"#7d56f4", "#ee6ff8"},
-	"borland": {"#e8a87c", "#ffd75f"},
-	"green":   {"#1f7a1f", "#5cff5c"},
-	"amber":   {"#8a5a00", "#ffcf40"},
+	"dark":       {"#7d56f4", "#ee6ff8"},
+	"borland":    {"#e8a87c", "#ffd75f"},
+	"green":      {"#1f7a1f", "#5cff5c"},
+	"amber":      {"#8a5a00", "#ffcf40"},
+	"dracula":    {"#bd93f9", "#ff79c6"},
+	"catppuccin": {"#cba6f7", "#f5c2e7"},
+	"nord":       {"#81a1c1", "#88c0d0"},
+	"gruvbox":    {"#fe8019", "#fabd2f"},
+	"solarized":  {"#268bd2", "#2aa198"},
+	"tokyonight": {"#7aa2f7", "#bb9af7"},
 }
 
 var palettes = map[string]palette{
@@ -101,6 +111,64 @@ var palettes = map[string]palette{
 		fkeyNumFg: "214", fkeyLblFg: "16", fkeyLblBg: "172",
 		statusFg: "172", statusErr: "220",
 	},
+	// The themes below are truecolor and paint no line background (bg unset);
+	// only the cursor row and the f-key chips carry a subtle surface color.
+	"dracula": {
+		border: "#44475a", borderFocus: "#6272a4",
+		title: "#bd93f9", titleFocus: "#ff79c6",
+		cursorFg: "#f8f8f2", cursorBg: "#44475a",
+		text: "#f8f8f2", dim: "#6272a4",
+		overdue: "#ff5555", prioHi: "#f1fa8c", accent: "#bd93f9",
+		fkeyNumFg: "#f8f8f2", fkeyLblFg: "#f8f8f2", fkeyLblBg: "#44475a",
+		statusFg: "#6272a4", statusErr: "#ff5555",
+		mdStyle: "dracula",
+	},
+	"catppuccin": { // Mocha
+		border: "#313244", borderFocus: "#45475a",
+		title: "#cba6f7", titleFocus: "#f5c2e7",
+		cursorFg: "#cdd6f4", cursorBg: "#313244",
+		text: "#cdd6f4", dim: "#6c7086",
+		overdue: "#f38ba8", prioHi: "#f9e2af", accent: "#cba6f7",
+		fkeyNumFg: "#cdd6f4", fkeyLblFg: "#cdd6f4", fkeyLblBg: "#313244",
+		statusFg: "#6c7086", statusErr: "#f38ba8",
+	},
+	"nord": {
+		border: "#3b4252", borderFocus: "#4c566a",
+		title: "#88c0d0", titleFocus: "#8fbcbb",
+		cursorFg: "#eceff4", cursorBg: "#3b4252",
+		text: "#d8dee9", dim: "#4c566a",
+		overdue: "#bf616a", prioHi: "#ebcb8b", accent: "#88c0d0",
+		fkeyNumFg: "#eceff4", fkeyLblFg: "#eceff4", fkeyLblBg: "#3b4252",
+		statusFg: "#4c566a", statusErr: "#bf616a",
+	},
+	"gruvbox": { // dark
+		border: "#3c3836", borderFocus: "#504945",
+		title: "#fabd2f", titleFocus: "#fe8019",
+		cursorFg: "#ebdbb2", cursorBg: "#3c3836",
+		text: "#ebdbb2", dim: "#928374",
+		overdue: "#fb4934", prioHi: "#fabd2f", accent: "#fe8019",
+		fkeyNumFg: "#ebdbb2", fkeyLblFg: "#ebdbb2", fkeyLblBg: "#3c3836",
+		statusFg: "#928374", statusErr: "#fb4934",
+	},
+	"solarized": { // dark
+		border: "#073642", borderFocus: "#586e75",
+		title: "#268bd2", titleFocus: "#2aa198",
+		cursorFg: "#eee8d5", cursorBg: "#073642",
+		text: "#93a1a1", dim: "#586e75",
+		overdue: "#dc322f", prioHi: "#b58900", accent: "#268bd2",
+		fkeyNumFg: "#eee8d5", fkeyLblFg: "#eee8d5", fkeyLblBg: "#073642",
+		statusFg: "#586e75", statusErr: "#dc322f",
+	},
+	"tokyonight": {
+		border: "#292e42", borderFocus: "#414868",
+		title: "#7aa2f7", titleFocus: "#bb9af7",
+		cursorFg: "#c0caf5", cursorBg: "#292e42",
+		text: "#c0caf5", dim: "#565f89",
+		overdue: "#f7768e", prioHi: "#e0af68", accent: "#7aa2f7",
+		fkeyNumFg: "#c0caf5", fkeyLblFg: "#c0caf5", fkeyLblBg: "#292e42",
+		statusFg: "#565f89", statusErr: "#f7768e",
+		mdStyle: "tokyo-night",
+	},
 }
 
 // NormalizeTheme maps unknown names to the default theme.
@@ -128,6 +196,9 @@ type Theme struct {
 	// GradFrom/GradTo are the hex endpoints for the logo gradient (see GradientLine).
 	GradFrom string
 	GradTo   string
+
+	// MDStyle is the glamour builtin style used to render markdown.
+	MDStyle string
 
 	Bg          lipgloss.Style // base background (empty style on bg-less themes)
 	Border      lipgloss.Style
@@ -172,11 +243,17 @@ func NewTheme(name string, ascii bool) Theme {
 
 	grad := logoGradient[name]
 
+	mdStyle := p.mdStyle
+	if mdStyle == "" {
+		mdStyle = "dark"
+	}
+
 	th := Theme{
 		Name:        name,
 		Box:         box,
 		GradFrom:    grad[0],
 		GradTo:      grad[1],
+		MDStyle:     mdStyle,
 		Bg:          base,
 		Border:      fg(p.border),
 		BorderFocus: fg(p.borderFocus),

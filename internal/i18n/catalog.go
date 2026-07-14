@@ -153,7 +153,7 @@ var catalog = map[string][2]string{
 	"help.undoredo.k":  {"undo · redo", "undo · redo"},
 	"help.undoredo.v":  {"undo · redo the last operation", "desfaz · refaz a última operação"},
 	"help.theme.k":     {"/theme [name]", "/theme [nome]"},
-	"help.theme.v":     {"theme: dark, borland, green, amber", "tema: dark, borland, green, amber"},
+	"help.theme.v":     {"switch color theme", "troca o tema de cores"},
 	"help.sort.k":      {"/sort [mode]", "/sort [modo]"},
 	"help.sort.v":      {"sort: urgency, due, created", "ordenação: urgency, due, created"},
 	"help.lang.k":      {"/lang [en|pt-br]", "/lang [en|pt-br]"},

@@ -108,7 +108,7 @@ func (d *Detail) View(th Theme, w, h int) string {
 		if mw < 10 {
 			mw = 10
 		}
-		md := renderMarkdown(nb.String(), mw, d.ascii)
+		md := renderMarkdown(nb.String(), mw, mdStyle(th, d.ascii))
 		for _, ln := range strings.Split(strings.TrimRight(md, "\n"), "\n") {
 			add(ln)
 		}

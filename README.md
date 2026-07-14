@@ -187,12 +187,15 @@ both work regardless of the interface language).
 
 ## Themes
 
-Four themes, switchable with `/theme` in the REPL or `t` in the classic TUI; the
-choice is saved:
+Ten themes, switchable with `/theme` in the REPL or `t` in the classic TUI (or
+`/theme <name>`); the choice is saved. They restyle the text, the interface, and
+the markdown rendering — without painting a line background, so your terminal
+shows through:
 
-- **dark** (default) — uses your terminal background, subtle accents
+- **dark** (default) — subtle grays, adapts to light/dark terminals
 - **borland** — retro navy, Turbo Vision style
 - **green** / **amber** — monochrome CRT phosphor
+- **dracula**, **catppuccin**, **nord**, **gruvbox**, **solarized**, **tokyonight** — popular truecolor palettes
 
 Resolution order: `--theme` flag > `TASKFRAME_THEME` > saved setting > config
 file > dark.

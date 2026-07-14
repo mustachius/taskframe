@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mustachius/taskframe/internal/cli"
 	"github.com/mustachius/taskframe/internal/config"
@@ -19,12 +20,12 @@ func main() {
 	fs := flag.NewFlagSet("taskframe", flag.ExitOnError)
 	dbPath := fs.String("db", "", "database path (default: %APPDATA%\\taskframe\\taskframe.db)")
 	ascii := fs.Bool("ascii", false, "plain borders (terminals without double box-drawing support)")
-	theme := fs.String("theme", "", "theme: dark, borland, green, amber (default: last used)")
+	theme := fs.String("theme", "", "theme (default: last used); one of: "+strings.Join(ui.ThemeNames, ", "))
 	lang := fs.String("lang", "", "language: en, pt-br (default: last used)")
 	fs.Parse(os.Args[1:])
 
 	if *theme != "" && ui.NormalizeTheme(*theme) != *theme {
-		fatal(fmt.Errorf("invalid theme: %q (options: dark, borland, green, amber)", *theme))
+		fatal(fmt.Errorf("invalid theme: %q (options: %s)", *theme, strings.Join(ui.ThemeNames, ", ")))
 	}
 
 	cfg, err := config.Load()

@@ -14,18 +14,21 @@ var (
 	mdCache = map[string]*glamour.TermRenderer{}
 )
 
-// RenderMarkdown renders md as styled terminal output word-wrapped to width. It
-// uses glamour's auto (dark/light) style, or the plain "notty" style under
-// ascii. Renderers are cached per (width, style) because building one is
-// expensive. On any error it degrades to returning the raw markdown.
+// RenderMarkdown renders md as styled terminal output word-wrapped to width,
+// using the given glamour builtin style ("dark", "dracula", "tokyo-night", …)
+// or "notty" for no color. Renderers are cached per (style, width) because
+// building one is expensive. On any error it degrades to the raw markdown.
 //
 // This package stays string-only (no task/store imports) to preserve the shared
 // visual layer's position at the bottom of the dependency graph.
-func RenderMarkdown(md string, width int, ascii bool) string {
+func RenderMarkdown(md string, width int, style string) string {
 	if width < 1 {
 		width = 80
 	}
-	key := fmt.Sprintf("%v:%d", ascii, width)
+	if style == "" {
+		style = "dark"
+	}
+	key := fmt.Sprintf("%s:%d", style, width)
 
 	mdMu.Lock()
 	defer mdMu.Unlock()
@@ -33,19 +36,13 @@ func RenderMarkdown(md string, width int, ascii bool) string {
 	r, ok := mdCache[key]
 	if !ok {
 		// Pin glamour to the same color profile lipgloss uses, so markdown
-		// renders (bold, colors) consistently with the rest of the UI. Relying
-		// on glamour's own auto-detection can fall back to no color and leave
-		// literal ** markers in the output.
+		// renders consistently with the rest of the UI. Relying on glamour's own
+		// auto-detection can fall back to no color and leave literal ** markers.
 		prof := lipgloss.ColorProfile()
-		if !ascii && prof == termenv.Ascii {
-			// The rest of the UI (gradient, boxes) is clearly rendering in color,
-			// so a fallback to Ascii here is almost certainly a detection miss;
-			// use truecolor so notes actually render styled.
+		if style != "notty" && prof == termenv.Ascii {
+			// The rest of the UI is clearly rendering in color, so an Ascii
+			// result here is almost certainly a detection miss; use truecolor.
 			prof = termenv.TrueColor
-		}
-		style := "dark"
-		if ascii || prof == termenv.Ascii {
-			style = "notty"
 		}
 		var err error
 		r, err = glamour.NewTermRenderer(
