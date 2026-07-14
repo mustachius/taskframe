@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 var (
@@ -30,12 +32,21 @@ func RenderMarkdown(md string, width int, ascii bool) string {
 
 	r, ok := mdCache[key]
 	if !ok {
-		style := glamour.WithAutoStyle()
-		if ascii {
-			style = glamour.WithStandardStyle("notty")
+		// Pin glamour to the same color profile lipgloss uses, so markdown
+		// renders (bold, colors) consistently with the rest of the UI. Relying
+		// on glamour's own auto-detection can fall back to no color and leave
+		// literal ** markers in the output.
+		prof := lipgloss.ColorProfile()
+		style := "dark"
+		if ascii || prof == termenv.Ascii {
+			style = "notty"
 		}
 		var err error
-		r, err = glamour.NewTermRenderer(style, glamour.WithWordWrap(width))
+		r, err = glamour.NewTermRenderer(
+			glamour.WithStandardStyle(style),
+			glamour.WithColorProfile(prof),
+			glamour.WithWordWrap(width),
+		)
 		if err != nil {
 			return md
 		}
