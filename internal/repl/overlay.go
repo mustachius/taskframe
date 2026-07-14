@@ -204,34 +204,19 @@ func (m model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc", "enter", "q":
 		m.mode = modeList
 		return m, nil
-	case "up", "k":
-		if m.detailScroll > 0 {
-			m.detailScroll--
-		}
-	case "down", "j":
-		m.detailScroll++
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.detailVP, cmd = m.detailVP.Update(msg)
+	return m, cmd
 }
 
 func (m model) viewDetail() string {
 	w := min(m.w, 100)
-	inner := min(len(m.detailLines), maxOverlayRows)
-	if inner < 1 {
-		inner = 1
-	}
-	if m.detailScroll > len(m.detailLines)-inner {
-		m.detailScroll = len(m.detailLines) - inner
-	}
-	if m.detailScroll < 0 {
-		m.detailScroll = 0
-	}
-	end := min(len(m.detailLines), m.detailScroll+inner)
-	visible := m.detailLines[m.detailScroll:end]
 	title := m.lang.T("detail.title")
 	if m.detail != nil {
 		title = m.lang.Tf("detail.titleN", m.detail.ID)
 	}
+	visible := strings.Split(m.detailVP.View(), "\n")
 	box := ui.DrawBoxChars(m.th, roundBox(m.ascii), title, visible, w, len(visible)+2, true)
 	return box + "\n" + m.th.Dim.Render(m.lang.T("detail.footer"))
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/task"
@@ -15,11 +16,11 @@ type Detail struct {
 	children []*task.Task
 	notes    []task.Note
 	acts     []task.Activity
-	scroll   int
+	vp       viewport.Model
 }
 
 func NewDetail(lang i18n.Lang, t *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity) *Detail {
-	return &Detail{lang: lang, t: t, children: children, notes: notes, acts: acts}
+	return &Detail{lang: lang, t: t, children: children, notes: notes, acts: acts, vp: viewport.New(0, 0)}
 }
 
 func (d *Detail) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -30,14 +31,10 @@ func (d *Detail) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	switch keyMsg.String() {
 	case "esc", "enter", "f3", "q":
 		return d, func() tea.Msg { return modalCancelMsg{} }
-	case "up", "k":
-		if d.scroll > 0 {
-			d.scroll--
-		}
-	case "down", "j":
-		d.scroll++
 	}
-	return d, nil
+	var cmd tea.Cmd
+	d.vp, cmd = d.vp.Update(msg)
+	return d, cmd
 }
 
 func (d *Detail) View(th Theme, w, h int) string {
@@ -111,23 +108,18 @@ func (d *Detail) View(th Theme, w, h int) string {
 	for _, a := range d.acts {
 		add(" " + th.Dim.Render(a.TS.Format("02/01 15:04")+" ") + th.Text.Render(truncRunes(actDesc(d.lang, a), w-20)))
 	}
-	add("")
-	add(" " + th.Dim.Render(d.lang.T("detail.footerTui")))
 
 	bw := w - 8
 	if bw > 76 {
 		bw = 76
 	}
 	bh := h - 4
-	inner := bh - 2
-	if d.scroll > len(lines)-inner {
-		d.scroll = len(lines) - inner
-	}
-	if d.scroll < 0 {
-		d.scroll = 0
-	}
-	visible := lines[d.scroll:]
-	return drawBox(th, d.lang.Tf("detail.titleTui", t.ID), visible, bw, bh, true)
+	d.vp.Width = bw - 2
+	d.vp.Height = bh - 2
+	d.vp.SetContent(strings.Join(lines, "\n"))
+	visible := strings.Split(d.vp.View(), "\n")
+	box := drawBox(th, d.lang.Tf("detail.titleTui", t.ID), visible, bw, bh, true)
+	return box + "\n " + th.Dim.Render(d.lang.T("detail.footerTui"))
 }
 
 func actDesc(lang i18n.Lang, a task.Activity) string {

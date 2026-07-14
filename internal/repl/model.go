@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
@@ -62,9 +63,9 @@ type model struct {
 	addInput  textinput.Model
 
 	// detail overlay
-	detail       *task.Task
-	detailLines  []string
-	detailScroll int
+	detail      *task.Task
+	detailLines []string
+	detailVP    viewport.Model
 
 	// note prompt
 	noteTarget int64
@@ -157,8 +158,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case detailLoadedMsg:
 		m.detail = msg.t
-		m.detailLines = detailBlock(m.th, m.lang, msg.t, msg.parent, msg.children, msg.notes, msg.acts, m.w-6)
-		m.detailScroll = 0
+		w := min(m.w, 100)
+		m.detailLines = detailBlock(m.th, m.lang, msg.t, msg.parent, msg.children, msg.notes, msg.acts, w-4)
+		h := min(len(m.detailLines), maxOverlayRows)
+		if h < 1 {
+			h = 1
+		}
+		m.detailVP = viewport.New(w-2, h)
+		m.detailVP.SetContent(strings.Join(m.detailLines, "\n"))
 		m.mode = modeDetail
 		return m, nil
 
