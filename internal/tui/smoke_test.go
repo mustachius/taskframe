@@ -93,7 +93,31 @@ func newTestApp(t *testing.T) (*App, *store.Store) {
 	if err := s.AddTask(sub); err != nil {
 		t.Fatal(err)
 	}
-	return newApp(s, Options{}), s
+	app := newApp(s, Options{})
+	app.reduceMotion = true // keep smoke tests instant/deterministic (no tick loop)
+	return app, s
+}
+
+func TestScrollerEases(t *testing.T) {
+	sc := newScroller(false)
+	sc.setSize(20, 5)
+	sc.setContent(strings.Repeat("line\n", 30))
+
+	if cmd := sc.onKey(tea.KeyMsg{Type: tea.KeyPgDown}); cmd == nil || !sc.animating {
+		t.Fatal("pgdown should start a scroll animation")
+	}
+	if sc.target <= 0 {
+		t.Fatalf("target should advance past the top, got %v", sc.target)
+	}
+	for i := 0; i < 300 && sc.animating; i++ {
+		sc.onFrame()
+	}
+	if sc.animating {
+		t.Fatal("spring should settle")
+	}
+	if sc.vp.YOffset != int(sc.target) || sc.vp.YOffset == 0 {
+		t.Fatalf("should ease to target %v, got YOffset=%d", sc.target, sc.vp.YOffset)
+	}
 }
 
 func TestMainFrameLayout(t *testing.T) {

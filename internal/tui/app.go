@@ -59,6 +59,7 @@ type App struct {
 	statusErr bool
 
 	pendingDelete int64
+	reduceMotion  bool // skip scroll animation (set in tests)
 }
 
 func Run(s *store.Store, opts Options) error {
@@ -215,11 +216,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case detailLoadedMsg:
-		a.modal = NewDetail(a.lang, msg.t, msg.children, msg.notes, msg.acts)
+		a.modal = NewDetail(a.lang, a.reduceMotion, msg.t, msg.children, msg.notes, msg.acts)
 		return a, nil
 
 	case readLoadedMsg:
-		a.modal = NewRead(a.lang, a.ascii, msg.t, msg.notes)
+		a.modal = NewRead(a.lang, a.ascii, a.reduceMotion, msg.t, msg.notes)
 		return a, nil
 
 	case formSubmittedMsg:

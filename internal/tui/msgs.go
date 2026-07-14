@@ -31,6 +31,9 @@ type readLoadedMsg struct {
 	notes []task.Note
 }
 
+// frameMsg drives one step of a spring animation (see scroller).
+type frameMsg struct{}
+
 type errMsg struct{ err error }
 
 type statusMsg string
