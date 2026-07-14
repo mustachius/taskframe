@@ -21,32 +21,29 @@ func parseHex(s string) (r, g, b int, ok bool) {
 
 func lerp(a, b int, t float64) int { return int(float64(a) + (float64(b)-float64(a))*t + 0.5) }
 
-// GradientLine colors s cell by cell along a left-to-right gradient between the
-// hex colors from and to. width is the reference span for the ramp (pass the
-// widest line so a multi-line block shares vertical color columns). Truecolor
-// output; lipgloss/termenv downsamples on limited terminals. Falls back to the
-// plain string when an endpoint is not "#rrggbb".
-func GradientLine(s, from, to string, width int) string {
+// blendHex interpolates two "#rrggbb" colors at t in [0,1].
+func blendHex(fr, fg, fb, tr, tg, tb int, t float64) lipgloss.Color {
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", lerp(fr, tr, t), lerp(fg, tg, t), lerp(fb, tb, t)))
+}
+
+// GradientBlock colors a block of lines top-to-bottom: each line gets a solid
+// color interpolated between the hex endpoints from (first line) and to (last
+// line). Truecolor output; lipgloss/termenv downsamples on limited terminals.
+// Returns the lines unchanged when an endpoint is not "#rrggbb".
+func GradientBlock(lines []string, from, to string) []string {
 	fr, fg, fb, ok1 := parseHex(from)
 	tr, tg, tb, ok2 := parseHex(to)
-	runes := []rune(s)
-	if !ok1 || !ok2 || len(runes) == 0 {
-		return s
+	if !ok1 || !ok2 || len(lines) == 0 {
+		return lines
 	}
-	if width < 2 {
-		width = len(runes)
-	}
-	var b strings.Builder
-	for i, ch := range runes {
+	out := make([]string, len(lines))
+	n := len(lines)
+	for i, line := range lines {
 		t := 0.0
-		if width > 1 {
-			t = float64(i) / float64(width-1)
-			if t > 1 {
-				t = 1
-			}
+		if n > 1 {
+			t = float64(i) / float64(n-1)
 		}
-		col := lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", lerp(fr, tr, t), lerp(fg, tg, t), lerp(fb, tb, t)))
-		b.WriteString(lipgloss.NewStyle().Foreground(col).Render(string(ch)))
+		out[i] = lipgloss.NewStyle().Foreground(blendHex(fr, fg, fb, tr, tg, tb, t)).Render(line)
 	}
-	return b.String()
+	return out
 }
