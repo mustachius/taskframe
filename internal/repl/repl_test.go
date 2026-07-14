@@ -172,6 +172,24 @@ func TestDoneViaCommand(t *testing.T) {
 	}
 }
 
+func TestPromptBoxAlignsOnResize(t *testing.T) {
+	tm, _ := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	// a terminal wider than the box cap (100) used to overflow the input past
+	// the box border, misaligning the right edge.
+	m = drive(t, m, tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	frame := stripANSI(m.(model).viewPrompt())
+	lines := strings.Split(strings.TrimRight(frame, "\n"), "\n")
+	want := len([]rune(lines[0]))
+	for i, ln := range lines {
+		if w := len([]rune(ln)); w != want {
+			t.Fatalf("prompt box line %d width %d != %d (misaligned):\n%s", i, w, want, frame)
+		}
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	tm, _ := newTestModel(t)
 	var m tea.Model = tm

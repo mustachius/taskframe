@@ -106,7 +106,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
-		m.input.Width = max(10, m.w-8)
+		// keep the input inside the prompt box, which is capped at width 100;
+		// otherwise a wider terminal overflows the box and misaligns its border.
+		m.input.Width = max(10, min(m.w, 100)-8)
 		return m, nil
 
 	case cachesMsg:
@@ -147,7 +149,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ni.Prompt = m.lang.T("note.promptGlyph")
 		ni.CharLimit = 500
 		ni.Cursor.SetMode(cursor.CursorStatic)
-		ni.Width = max(10, m.w-10)
+		ni.Width = max(10, min(m.w, 60)-10)
 		ni.Focus()
 		m.noteInput = ni
 		m.mode = modeNote
@@ -246,7 +248,7 @@ func (m model) startAddChild(t *task.Task) model {
 	ci.Prompt = m.lang.T("child.promptGlyph")
 	ci.CharLimit = 500
 	ci.Cursor.SetMode(cursor.CursorStatic)
-	ci.Width = max(10, m.w-10)
+	ci.Width = max(10, min(m.w, 60)-10)
 	ci.Focus()
 	m.addInput = ci
 	m.expanded[t.ID] = true // reveal the new child
