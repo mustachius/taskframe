@@ -8,8 +8,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvsaga/taskframe/internal/store"
-	"github.com/jvsaga/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/store"
+	"github.com/mustachius/taskframe/internal/task"
 )
 
 var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)

@@ -3,7 +3,7 @@ package tui
 import (
 	"strings"
 
-	"github.com/jvsaga/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/i18n"
 )
 
 type fkey struct{ num, label string }

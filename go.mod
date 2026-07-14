@@ -1,4 +1,4 @@
-module github.com/jvsaga/taskframe
+module github.com/mustachius/taskframe
 
 go 1.26.5
 

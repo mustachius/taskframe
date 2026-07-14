@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jvsaga/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/task"
 )
 
 func logActivity(tx *sql.Tx, opID string, taskID int64, ts time.Time, kind, field, oldVal, newVal string) error {

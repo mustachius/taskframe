@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvsaga/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/i18n"
 )
 
 // Move is the F6 dialog: change a task's project and/or parent.

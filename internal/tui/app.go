@@ -8,9 +8,9 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvsaga/taskframe/internal/i18n"
-	"github.com/jvsaga/taskframe/internal/store"
-	"github.com/jvsaga/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/store"
+	"github.com/mustachius/taskframe/internal/task"
 )
 
 // Modal is a dialog that captures all input while open.

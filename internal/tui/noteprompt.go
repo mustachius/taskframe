@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvsaga/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/i18n"
 )
 
 // NotePrompt is a one-line input for adding a note to a task.

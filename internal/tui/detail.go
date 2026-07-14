@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvsaga/taskframe/internal/i18n"
-	"github.com/jvsaga/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/task"
 )
 
 // Detail shows a task's fields, notes and full activity log.

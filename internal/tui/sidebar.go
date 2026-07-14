@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jvsaga/taskframe/internal/i18n"
-	"github.com/jvsaga/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/task"
 )
 
 type sbKind int

@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvsaga/taskframe/internal/i18n"
-	"github.com/jvsaga/taskframe/internal/store"
-	"github.com/jvsaga/taskframe/internal/task"
-	"github.com/jvsaga/taskframe/internal/ui"
+	"github.com/mustachius/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/store"
+	"github.com/mustachius/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 // Options configures the REPL at startup (resolved in main.go).
