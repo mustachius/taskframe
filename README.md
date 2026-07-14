@@ -10,27 +10,6 @@ SQLite backend (no CGo), so it runs cleanly on Windows.
 
 ![taskframe demo](demo.gif)
 
-```
-████████╗ █████╗ ███████╗██╗  ██╗███████╗██████╗  █████╗ ███╗   ███╗███████╗
-╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗██╔══██╗████╗ ████║██╔════╝
-   ██║   ███████║███████╗█████╔╝ █████╗  ██████╔╝███████║██╔████╔██║█████╗
-   ██║   ██╔══██║╚════██║██╔═██╗ ██╔══╝  ██╔══██╗██╔══██║██║╚██╔╝██║██╔══╝
-   ██║   ██║  ██║███████║██║  ██╗██║     ██║  ██║██║  ██║██║ ╚═╝ ██║███████╗
-   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝
-
-tasks in your terminal
-
-› add buy milk pro:home due:fri
-  task 5 created: buy milk
-
-› list
-╭─ tasks ────────────────────────────────────╮
-│ › 5 [ ] H fri    buy milk                   │
-│   3 [ ]          review report              │
-╰────────────────────────────────────────────╯
-  ↑↓ move · enter open · d done · esc close
-```
-
 ## Features
 
 - **Three interfaces, one database** — inline REPL (default), quick-capture CLI,
