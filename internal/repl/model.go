@@ -1,7 +1,7 @@
-// Package repl implements the inline, Claude-Code-style interface: a logo
-// banner, a bordered prompt at the bottom, and command output that scrolls
-// into the terminal's real scrollback. It reuses the store, the token parser
-// (task.ParseTokens) and the shared theme layer (internal/ui).
+// Package repl implements the inline interface: a logo banner, a bordered
+// prompt at the bottom, and command output that scrolls into the terminal's
+// real scrollback. It reuses the store, the token parser (task.ParseTokens)
+// and the shared theme layer (internal/ui).
 package repl
 
 import (
@@ -114,7 +114,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case errMsg:
-		return m, m.emit(m.th.StatusErr.Render("✗ " + msg.err.Error()))
+		return m, m.emit(m.th.StatusErr.Render("x " + msg.err.Error()))
 
 	case resultMsg:
 		cmd := m.emit(msg.lines...)
@@ -227,7 +227,7 @@ func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		id := m.noteTarget
 		return m, m.storeCmd(func() resultMsg {
 			if _, err := m.store.AddNote(id, body); err != nil {
-				return resultMsg{lines: []string{m.th.StatusErr.Render("✗ " + err.Error())}}
+				return resultMsg{lines: []string{m.th.StatusErr.Render("x " + err.Error())}}
 			}
 			return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.noteAdded", id))}}
 		})

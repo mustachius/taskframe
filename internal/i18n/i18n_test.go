@@ -41,7 +41,7 @@ func TestLookupFallback(t *testing.T) {
 	if got := EN.T("does.not.exist"); got != "does.not.exist" {
 		t.Errorf("missing key should return the key itself, got %q", got)
 	}
-	if got := PT.Tf("status.taskDone", 7); got != "  ✓ tarefa 7 concluída" {
+	if got := PT.Tf("status.taskDone", 7); got != "  tarefa 7 concluída" {
 		t.Errorf("Tf formatting failed: %q", got)
 	}
 }

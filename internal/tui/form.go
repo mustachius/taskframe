@@ -191,7 +191,7 @@ func (f *Form) View(th Theme, w, h int) string {
 		}
 	}
 	if f.errText != "" {
-		lines = append(lines, " "+th.Overdue.Render("✗ "+f.errText))
+		lines = append(lines, " "+th.Overdue.Render("x "+f.errText))
 	} else {
 		lines = append(lines, "")
 	}
