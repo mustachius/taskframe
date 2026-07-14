@@ -529,11 +529,22 @@ func (a *App) statusLine() string {
 	if a.filter.Text != "" {
 		info += a.lang.Tf("app.searchInfo", a.filter.Text)
 	}
-	line := info
+	left := info
 	if a.status != "" {
-		line = " " + a.status + " ·" + info
+		left = " " + a.status + " ·" + info
 	}
-	return padRow(style.Render(truncRunes(line, a.w)), a.w, a.th.Status)
+	// right-aligned sort indicator; the left side yields space when tight.
+	rightSeg := a.lang.Tf("app.sort", a.lang.T("sort."+string(a.sortMode))) + " "
+	avail := a.w - len([]rune(rightSeg))
+	if avail < 0 {
+		avail = 0
+	}
+	left = truncRunes(left, avail)
+	gap := a.w - len([]rune(left)) - len([]rune(rightSeg))
+	if gap < 0 {
+		gap = 0
+	}
+	return style.Render(left) + style.Render(strings.Repeat(" ", gap)) + style.Render(rightSeg)
 }
 
 // joinHorizontal glues two multi-line blocks side by side.
