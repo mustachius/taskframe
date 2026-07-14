@@ -247,7 +247,7 @@ func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*
 	add(" " + th.TitleFocus.Render(ui.TruncRunes(t.Title, w-2)))
 	add(" " + label(lang.T("lbl.status")) + val(string(t.Status)))
 	if t.Start != nil {
-		add(" " + label(lang.T("lbl.started")) + th.Accent.Render("▶ "+t.Start.Format("02/01/2006 15:04")))
+		add(" " + label(lang.T("lbl.started")) + th.Accent.Render(t.Start.Format("02/01/2006 15:04")))
 	}
 	if parent != nil {
 		add(" " + label(lang.T("lbl.parent")) + val(ui.TruncRunes(fmt.Sprintf("#%d %s", parent.ID, parent.Title), w-18)))

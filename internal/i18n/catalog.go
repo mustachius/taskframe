@@ -1,9 +1,7 @@
 package i18n
 
 // catalog maps a stable key to its {english, pt-br} pair. English (index 0) is
-// the canonical source; a "" pt-br entry falls back to English at lookup time.
-// Decorative glyphs (✓ ✗ ↻ ▶ · ↑↓) are kept inside the values for convenience —
-// they are identical across languages.
+// the canonical source; an empty pt-br entry falls back to English at lookup.
 var catalog = map[string][2]string{
 	// --- banner / hint (repl) ---
 	"banner.subtitle": {"tasks in your terminal", "tarefas no terminal"},
@@ -26,19 +24,19 @@ var catalog = map[string][2]string{
 	"note.empty":         {"  (empty note, ignored)", "  (nota vazia, ignorada)"},
 
 	// --- status messages (repl) ---
-	"status.noteAdded":        {"  ✓ note added to task %d", "  ✓ nota adicionada à tarefa %d"},
-	"status.taskCreated":      {"  ✓ task %d created: %s", "  ✓ tarefa %d criada: %s"},
-	"status.taskCreatedUnder": {"  ✓ task %d created under %d: %s", "  ✓ tarefa %d criada sob %d: %s"},
-	"status.taskDone":         {"  ✓ task %d done", "  ✓ tarefa %d concluída"},
-	"status.recur":            {"    ↻ recurrence: task %d due %s", "    ↻ recorrência: tarefa %d vence %s"},
+	"status.noteAdded":        {"  note added to task %d", "  nota adicionada à tarefa %d"},
+	"status.taskCreated":      {"  task %d created: %s", "  tarefa %d criada: %s"},
+	"status.taskCreatedUnder": {"  task %d created under %d: %s", "  tarefa %d criada sob %d: %s"},
+	"status.taskDone":         {"  task %d done", "  tarefa %d concluída"},
+	"status.recur":            {"    recurrence: task %d due %s", "    recorrência: tarefa %d vence %s"},
 	"status.taskDeletedUndo":  {"  task %d deleted (undo reverts)", "  tarefa %d deletada (undo desfaz)"},
 	"status.taskDeleted":      {"  task %d deleted", "  tarefa %d deletada"},
-	"status.taskUpdated":      {"  ✓ task %d updated", "  ✓ tarefa %d atualizada"},
-	"status.taskMoved":        {"  ✓ task %d moved", "  ✓ tarefa %d movida"},
-	"status.taskStarted":      {"  ✓ task %d started", "  ✓ tarefa %d iniciada"},
-	"status.taskStopped":      {"  ✓ task %d stopped", "  ✓ tarefa %d parada"},
-	"status.undone":           {"  ✓ undone: %s", "  ✓ desfeito: %s"},
-	"status.redone":           {"  ✓ redone: %s", "  ✓ refeito: %s"},
+	"status.taskUpdated":      {"  task %d updated", "  tarefa %d atualizada"},
+	"status.taskMoved":        {"  task %d moved", "  tarefa %d movida"},
+	"status.taskStarted":      {"  task %d started", "  tarefa %d iniciada"},
+	"status.taskStopped":      {"  task %d stopped", "  tarefa %d parada"},
+	"status.undone":           {"  undone: %s", "  desfeito: %s"},
+	"status.redone":           {"  redone: %s", "  refeito: %s"},
 	"status.purged":           {"  %d task(s) permanently removed", "  %d tarefa(s) removida(s) definitivamente"},
 
 	// --- usage / UI errors (repl) ---
@@ -53,16 +51,16 @@ var catalog = map[string][2]string{
 	"err.idInvalid":       {"invalid id: %s", "id inválido: %s"},
 	"err.subNumeric":      {"sub: expects a numeric id (or 0)", "sub: espera um id numérico (ou 0)"},
 	"err.nothingToMove":   {"nothing to move: provide pro: and/or sub:", "nada a mover: informe pro: e/ou sub:"},
-	"err.unknownCmd":      {"✗ unknown command: %s", "✗ comando desconhecido: %s"},
+	"err.unknownCmd":      {"x unknown command: %s", "x comando desconhecido: %s"},
 	"hint.helpList":       {"  (/help for the list)", "  (/help para a lista)"},
 	"hint.helpShort":      {"  (/help)", "  (/help)"},
-	"err.themeInvalid":    {"✗ invalid theme: %s", "✗ tema inválido: %s"},
+	"err.themeInvalid":    {"x invalid theme: %s", "x tema inválido: %s"},
 	"hint.themes":         {"  (dark, borland, green, amber)", "  (dark, borland, green, amber)"},
-	"status.theme":        {"  ✓ theme: %s", "  ✓ tema: %s"},
-	"status.sort":         {"  ✓ sort: %s", "  ✓ ordenação: %s"},
-	"err.langInvalid":     {"✗ invalid language: %s", "✗ idioma inválido: %s"},
+	"status.theme":        {"  theme: %s", "  tema: %s"},
+	"status.sort":         {"  sort: %s", "  ordenação: %s"},
+	"err.langInvalid":     {"x invalid language: %s", "x idioma inválido: %s"},
 	"hint.langs":          {"  (en, pt-br)", "  (en, pt-br)"},
-	"status.lang":         {"  ✓ language: %s", "  ✓ idioma: %s"},
+	"status.lang":         {"  language: %s", "  idioma: %s"},
 	"classic.run":         {"  run: ", "  rode: "},
 	"classic.hint":        {"  (two-pane interface)", "  (interface de dois painéis)"},
 
@@ -71,12 +69,12 @@ var catalog = map[string][2]string{
 	"ctx.activeLabel":  {"  active context: ", "  contexto ativo: "},
 	"ctx.noneDefined":  {"  no context defined", "  nenhum contexto definido"},
 	"usage.ctxDefine":  {"usage: context define <name> <tokens>", "uso: context define <nome> <tokens>"},
-	"status.ctxDefine": {"  ✓ context %s: %s", "  ✓ contexto %s: %s"},
+	"status.ctxDefine": {"  context %s: %s", "  contexto %s: %s"},
 	"ctx.deactivated":  {"  context deactivated", "  contexto desativado"},
 	"usage.ctxDelete":  {"usage: context delete <name>", "uso: context delete <nome>"},
 	"ctx.removed":      {"  context %s removed", "  contexto %s removido"},
 	"err.ctxUndefined": {"context %q not defined (context define %s <tokens>)", "contexto %q não definido (context define %s <tokens>)"},
-	"status.ctxActive": {"  ✓ active context: %s", "  ✓ contexto ativo: %s"},
+	"status.ctxActive": {"  active context: %s", "  contexto ativo: %s"},
 
 	// --- overlay / detail (repl) ---
 	"overlay.empty":  {" no tasks", " nenhuma tarefa"},
@@ -138,7 +136,7 @@ var catalog = map[string][2]string{
 	"help.done.k":      {"done <ids>", "done <ids>"},
 	"help.done.v":      {"complete — ids: 1  1,5  1-3", "conclui — ids: 1  1,5  1-3"},
 	"help.startstop.k": {"start/stop <ids>", "start/stop <ids>"},
-	"help.startstop.v": {"mark in progress (urgency rises, ▶)", "marca em andamento (urgência sobe, ▶)"},
+	"help.startstop.v": {"mark in progress (urgency rises)", "marca em andamento (urgência sobe)"},
 	"help.del.k":       {"del <ids>", "del <ids>"},
 	"help.del.v":       {"delete (undo reverts)", "deleta (undo desfaz)"},
 	"help.note.k":      {"note <id> [text]", "note <id> [texto]"},

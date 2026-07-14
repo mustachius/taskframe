@@ -107,7 +107,7 @@ func (m *Move) View(th Theme, w, h int) string {
 		"",
 	}
 	if m.errText != "" {
-		lines = append(lines, " "+th.Overdue.Render("✗ "+m.errText))
+		lines = append(lines, " "+th.Overdue.Render("x "+m.errText))
 	} else {
 		lines = append(lines, "")
 	}

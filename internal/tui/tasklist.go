@@ -152,7 +152,7 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 		mark = "[-]"
 	}
 	if t.Status == task.StatusPending && t.IsActive() {
-		mark = "[▶]"
+		mark = "[>]"
 	}
 
 	arrow := " "
@@ -180,7 +180,7 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 		title += " +" + tag
 	}
 	if t.Recur != "" {
-		title += " ↻"
+		title += " ~"
 	}
 
 	head := fmt.Sprintf(" %s%3d %s %s %s  ", arrow, t.ID, mark, pri, due)

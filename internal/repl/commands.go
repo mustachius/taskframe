@@ -308,7 +308,7 @@ func (m model) cmdDone(args []string) tea.Cmd {
 		for _, id := range ids {
 			next, err := m.store.CompleteTask(id)
 			if err != nil {
-				lines = append(lines, m.th.StatusErr.Render("  ✗ "+err.Error()))
+				lines = append(lines, m.th.StatusErr.Render("  x "+err.Error()))
 				continue
 			}
 			lines = append(lines, m.th.Accent.Render(m.lang.Tf("status.taskDone", id)))
@@ -329,7 +329,7 @@ func (m model) cmdDel(args []string) tea.Cmd {
 		var lines []string
 		for _, id := range ids {
 			if err := m.store.DeleteTask(id); err != nil {
-				lines = append(lines, m.th.StatusErr.Render("  ✗ "+err.Error()))
+				lines = append(lines, m.th.StatusErr.Render("  x "+err.Error()))
 				continue
 			}
 			lines = append(lines, m.th.Dim.Render(m.lang.Tf("status.taskDeletedUndo", id)))
@@ -551,7 +551,7 @@ func (m model) cmdStartStop(args []string, start bool) tea.Cmd {
 				e = m.store.StopTask(id)
 			}
 			if e != nil {
-				lines = append(lines, m.th.StatusErr.Render("  ✗ "+e.Error()))
+				lines = append(lines, m.th.StatusErr.Render("  x "+e.Error()))
 				continue
 			}
 			key := "status.taskStarted"
@@ -611,7 +611,7 @@ func persist(s interface{ SetSetting(string, string) error }, key, val string) t
 // --- helpers ---
 
 func errResult(th ui.Theme, msg string) resultMsg {
-	return resultMsg{lines: []string{th.StatusErr.Render("  ✗ " + msg)}}
+	return resultMsg{lines: []string{th.StatusErr.Render("  x " + msg)}}
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }

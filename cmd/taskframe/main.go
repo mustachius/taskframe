@@ -53,7 +53,7 @@ func main() {
 	args := fs.Args()
 	switch {
 	case len(args) == 0:
-		// new default: inline REPL, Claude-Code style
+		// default: the inline REPL
 		if err := repl.Run(s, repl.Options(opts)); err != nil {
 			fatal(err)
 		}
