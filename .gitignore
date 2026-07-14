@@ -3,3 +3,6 @@ taskframe.exe
 *.db
 *.db-wal
 *.db-shm
+
+# local-only agent notes (kept on disk, not versioned)
+CLAUDE.md
