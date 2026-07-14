@@ -3,7 +3,6 @@ package tui
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/task"
@@ -16,25 +15,25 @@ type Detail struct {
 	children []*task.Task
 	notes    []task.Note
 	acts     []task.Activity
-	vp       viewport.Model
+	sc       scroller
 }
 
-func NewDetail(lang i18n.Lang, t *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity) *Detail {
-	return &Detail{lang: lang, t: t, children: children, notes: notes, acts: acts, vp: viewport.New(0, 0)}
+func NewDetail(lang i18n.Lang, reduceMotion bool, t *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity) *Detail {
+	return &Detail{lang: lang, t: t, children: children, notes: notes, acts: acts, sc: newScroller(reduceMotion)}
 }
 
 func (d *Detail) Update(msg tea.Msg) (Modal, tea.Cmd) {
-	keyMsg, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return d, nil
+	switch m := msg.(type) {
+	case tea.KeyMsg:
+		switch m.String() {
+		case "esc", "enter", "f3", "q":
+			return d, func() tea.Msg { return modalCancelMsg{} }
+		}
+		return d, d.sc.onKey(m)
+	case frameMsg:
+		return d, d.sc.onFrame()
 	}
-	switch keyMsg.String() {
-	case "esc", "enter", "f3", "q":
-		return d, func() tea.Msg { return modalCancelMsg{} }
-	}
-	var cmd tea.Cmd
-	d.vp, cmd = d.vp.Update(msg)
-	return d, cmd
+	return d, nil
 }
 
 func (d *Detail) View(th Theme, w, h int) string {
@@ -114,10 +113,9 @@ func (d *Detail) View(th Theme, w, h int) string {
 		bw = 76
 	}
 	bh := h - 4
-	d.vp.Width = bw - 2
-	d.vp.Height = bh - 2
-	d.vp.SetContent(strings.Join(lines, "\n"))
-	visible := strings.Split(d.vp.View(), "\n")
+	d.sc.setSize(bw-2, bh-2)
+	d.sc.setContent(strings.Join(lines, "\n"))
+	visible := strings.Split(d.sc.view(), "\n")
 	box := drawBox(th, d.lang.Tf("detail.titleTui", t.ID), visible, bw, bh, true)
 	return box + "\n " + th.Dim.Render(d.lang.T("detail.footerTui"))
 }

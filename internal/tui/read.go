@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/task"
@@ -16,25 +15,25 @@ type Read struct {
 	ascii bool
 	t     *task.Task
 	notes []task.Note
-	vp    viewport.Model
+	sc    scroller
 }
 
-func NewRead(lang i18n.Lang, ascii bool, t *task.Task, notes []task.Note) *Read {
-	return &Read{lang: lang, ascii: ascii, t: t, notes: notes, vp: viewport.New(0, 0)}
+func NewRead(lang i18n.Lang, ascii, reduceMotion bool, t *task.Task, notes []task.Note) *Read {
+	return &Read{lang: lang, ascii: ascii, t: t, notes: notes, sc: newScroller(reduceMotion)}
 }
 
 func (r *Read) Update(msg tea.Msg) (Modal, tea.Cmd) {
-	keyMsg, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return r, nil
+	switch m := msg.(type) {
+	case tea.KeyMsg:
+		switch m.String() {
+		case "esc", "q", "R":
+			return r, func() tea.Msg { return modalCancelMsg{} }
+		}
+		return r, r.sc.onKey(m)
+	case frameMsg:
+		return r, r.sc.onFrame()
 	}
-	switch keyMsg.String() {
-	case "esc", "q", "R":
-		return r, func() tea.Msg { return modalCancelMsg{} }
-	}
-	var cmd tea.Cmd
-	r.vp, cmd = r.vp.Update(msg)
-	return r, cmd
+	return r, nil
 }
 
 // markdown assembles the task as a Markdown document: the title as an H1 and
@@ -59,10 +58,9 @@ func (r *Read) View(th Theme, w, h int) string {
 	}
 	bh := h - 4
 	rendered := strings.TrimRight(renderMarkdown(r.markdown(), bw-4, r.ascii), "\n")
-	r.vp.Width = bw - 2
-	r.vp.Height = bh - 2
-	r.vp.SetContent(rendered)
-	visible := strings.Split(r.vp.View(), "\n")
+	r.sc.setSize(bw-2, bh-2)
+	r.sc.setContent(rendered)
+	visible := strings.Split(r.sc.view(), "\n")
 	box := drawBox(th, r.lang.Tf("detail.titleTui", r.t.ID), visible, bw, bh, true)
 	return box + "\n " + th.Dim.Render(r.lang.T("detail.footerTui"))
 }
