@@ -21,6 +21,7 @@ func (hp *Help) View(th Theme, w, h int) string {
 		{"↑↓ / jk", hp.lang.T("tuihelp.move.v")},
 		{"←→ / hl", hp.lang.T("tuihelp.fold.v")},
 		{"Enter, F3", hp.lang.T("tuihelp.detail.v")},
+		{"R", hp.lang.T("tuihelp.read.v")},
 		{"F2, a", hp.lang.T("tuihelp.new.v")},
 		{"s", hp.lang.T("tuihelp.newsub.v")},
 		{"F4, e", hp.lang.T("tuihelp.edit.v")},

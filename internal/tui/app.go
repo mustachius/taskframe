@@ -171,6 +171,20 @@ func (a *App) openDetailCmd(id int64) tea.Cmd {
 	}
 }
 
+func (a *App) openReadCmd(id int64) tea.Cmd {
+	return func() tea.Msg {
+		t, err := a.store.GetTask(id)
+		if err != nil {
+			return errMsg{err}
+		}
+		notes, err := a.store.Notes(id)
+		if err != nil {
+			return errMsg{err}
+		}
+		return readLoadedMsg{t: t, notes: notes}
+	}
+}
+
 func (a *App) reload() tea.Cmd {
 	return tea.Batch(a.loadTasksCmd(), a.loadProjectsCmd())
 }
@@ -202,6 +216,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case detailLoadedMsg:
 		a.modal = NewDetail(a.lang, msg.t, msg.children, msg.notes, msg.acts)
+		return a, nil
+
+	case readLoadedMsg:
+		a.modal = NewRead(a.lang, a.ascii, msg.t, msg.notes)
 		return a, nil
 
 	case formSubmittedMsg:
@@ -372,6 +390,12 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "f3", "v":
 		if t := a.list.CursorTask(); t != nil {
 			return a, a.openDetailCmd(t.ID)
+		}
+		return a, nil
+
+	case "R":
+		if t := a.list.CursorTask(); t != nil {
+			return a, a.openReadCmd(t.ID)
 		}
 		return a, nil
 

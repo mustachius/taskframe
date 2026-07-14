@@ -87,6 +87,8 @@ func (m model) dispatch(line string) (tea.Model, tea.Cmd) {
 		return m, m.cmdDel(rest)
 	case "note", "n":
 		return m, m.cmdNote(rest)
+	case "read":
+		return m, m.cmdRead(rest)
 	case "edit", "e":
 		return m, m.cmdEdit(rest)
 	case "move", "mv", "m":
@@ -359,6 +361,38 @@ func (m model) cmdNote(args []string) tea.Cmd {
 			return errResult(m.th, err.Error())
 		}
 		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.noteAdded", id))}}
+	}
+}
+
+// cmdRead renders a task's notes as Markdown into the scrollback (Glow-style).
+func (m model) cmdRead(args []string) tea.Cmd {
+	return func() tea.Msg {
+		if len(args) < 1 {
+			return errResult(m.th, m.lang.T("usage.read"))
+		}
+		id, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			return errResult(m.th, m.lang.Tf("err.idInvalid", args[0]))
+		}
+		t, err := m.store.GetTask(id)
+		if err != nil {
+			return errResult(m.th, err.Error())
+		}
+		notes, err := m.store.Notes(id)
+		if err != nil {
+			return errResult(m.th, err.Error())
+		}
+		var b strings.Builder
+		b.WriteString("# " + t.Title + "\n\n")
+		if len(notes) == 0 {
+			b.WriteString(m.lang.T("read.noNotes") + "\n")
+		} else {
+			for _, n := range notes {
+				b.WriteString("### " + n.CreatedAt.Format("02/01/2006 15:04") + "\n\n" + n.Body + "\n\n")
+			}
+		}
+		md := ui.RenderMarkdown(b.String(), min(m.w, 100)-2, m.ascii)
+		return resultMsg{lines: strings.Split(strings.TrimRight(md, "\n"), "\n")}
 	}
 }
 
@@ -653,7 +687,7 @@ func helpLines(th ui.Theme, lang i18n.Lang) []string {
 	keys := []string{
 		"help.add", "help.sub", "help.list", "help.reports", "help.done",
 		"help.startstop", "help.del", "help.note", "help.edit", "help.move",
-		"help.context", "help.filters", "help.undoredo", "help.theme",
+		"help.read", "help.context", "help.filters", "help.undoredo", "help.theme",
 		"help.sort", "help.lang", "help.clear", "help.quit",
 	}
 	lines := []string{th.TitleFocus.Render(lang.T("help.title"))}

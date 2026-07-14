@@ -212,6 +212,22 @@ func TestDetailViewportScrolls(t *testing.T) {
 	}
 }
 
+func TestReadRendersNotesMarkdown(t *testing.T) {
+	tm, s := newTestModel(t)
+	s.AddNote(1, "waiting on **Marcos**")
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	m = run(t, m, "read 1")
+	txt := transcriptText(m.(model))
+	if !strings.Contains(txt, "Comprar leite") {
+		t.Fatalf("read should render the task title, transcript:\n%s", txt)
+	}
+	if !strings.Contains(txt, "Marcos") {
+		t.Fatalf("read should render the note body, transcript:\n%s", txt)
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	tm, _ := newTestModel(t)
 	var m tea.Model = tm

@@ -26,6 +26,11 @@ type detailLoadedMsg struct {
 	acts     []task.Activity
 }
 
+type readLoadedMsg struct {
+	t     *task.Task
+	notes []task.Note
+}
+
 type errMsg struct{ err error }
 
 type statusMsg string

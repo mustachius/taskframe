@@ -283,6 +283,21 @@ func TestVirtualFilters(t *testing.T) {
 	}
 }
 
+func TestReadModalOpens(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = drive(t, m, key("R"))
+	if _, ok := a.modal.(*Read); !ok {
+		t.Fatalf("R should open the Read modal, got %T", a.modal)
+	}
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "Comprar leite") {
+		t.Errorf("read view should render the task title, frame:\n%s", frame)
+	}
+}
+
 func TestMoveDialog(t *testing.T) {
 	a, s := newTestApp(t)
 	var m tea.Model = a
