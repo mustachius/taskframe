@@ -281,7 +281,8 @@ func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*
 				done++
 			}
 		}
-		add(" " + th.TitleFocus.Render(lang.Tf("detail.subtasks", done, len(children))))
+		bar := ui.ProgressBar(float64(done)/float64(len(children)), 12, th)
+		add(" " + th.TitleFocus.Render(lang.Tf("detail.subtasks", done, len(children))) + "  " + bar)
 		for _, c := range children {
 			mark := "[ ]"
 			if c.Status == task.StatusDone {

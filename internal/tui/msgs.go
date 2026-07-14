@@ -20,9 +20,10 @@ type sidebarData struct {
 type projectsLoadedMsg struct{ data sidebarData }
 
 type detailLoadedMsg struct {
-	t     *task.Task
-	notes []task.Note
-	acts  []task.Activity
+	t        *task.Task
+	children []*task.Task
+	notes    []task.Note
+	acts     []task.Activity
 }
 
 type errMsg struct{ err error }

@@ -8,17 +8,18 @@ import (
 	"github.com/mustachius/taskframe/internal/task"
 )
 
-// Detail shows a task's fields, notes and full activity log.
+// Detail shows a task's fields, subtasks, notes and full activity log.
 type Detail struct {
-	lang   i18n.Lang
-	t      *task.Task
-	notes  []task.Note
-	acts   []task.Activity
-	scroll int
+	lang     i18n.Lang
+	t        *task.Task
+	children []*task.Task
+	notes    []task.Note
+	acts     []task.Activity
+	scroll   int
 }
 
-func NewDetail(lang i18n.Lang, t *task.Task, notes []task.Note, acts []task.Activity) *Detail {
-	return &Detail{lang: lang, t: t, notes: notes, acts: acts}
+func NewDetail(lang i18n.Lang, t *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity) *Detail {
+	return &Detail{lang: lang, t: t, children: children, notes: notes, acts: acts}
 }
 
 func (d *Detail) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -75,6 +76,25 @@ func (d *Detail) View(th Theme, w, h int) string {
 	add(" " + label(d.lang.T("lbl.created")) + val(t.CreatedAt.Format("02/01/2006 15:04")))
 	if t.CompletedAt != nil {
 		add(" " + label(d.lang.T("lbl.completed")) + val(t.CompletedAt.Format("02/01/2006 15:04")))
+	}
+
+	if len(d.children) > 0 {
+		done := 0
+		for _, c := range d.children {
+			if c.Status == task.StatusDone {
+				done++
+			}
+		}
+		add("")
+		bar := progressBar(float64(done)/float64(len(d.children)), 12, th)
+		add(" " + th.TitleFocus.Render(d.lang.Tf("detail.subtasks", done, len(d.children))) + "  " + bar)
+		for _, c := range d.children {
+			mark := "[ ]"
+			if c.Status == task.StatusDone {
+				mark = "[x]"
+			}
+			add(" " + th.Dim.Render(mark+" ") + th.Text.Render(truncRunes(c.Title, w-20)))
+		}
 	}
 
 	if len(d.notes) > 0 {

@@ -49,6 +49,15 @@ type palette struct {
 // ThemeNames lists valid themes in cycle order.
 var ThemeNames = []string{"dark", "borland", "green", "amber"}
 
+// logoGradient holds the {from, to} hex endpoints used to color the startup
+// wordmark per theme. Mono themes ramp within their own hue to keep identity.
+var logoGradient = map[string][2]string{
+	"dark":    {"#7d56f4", "#ee6ff8"},
+	"borland": {"#e8a87c", "#ffd75f"},
+	"green":   {"#1f7a1f", "#5cff5c"},
+	"amber":   {"#8a5a00", "#ffcf40"},
+}
+
 var palettes = map[string]palette{
 	// soft dark: terminal background, gray chrome, sparse accents
 	"dark": {
@@ -116,6 +125,10 @@ type Theme struct {
 	Name string
 	Box  BoxChars
 
+	// GradFrom/GradTo are the hex endpoints for the logo gradient (see GradientLine).
+	GradFrom string
+	GradTo   string
+
 	Bg          lipgloss.Style // base background (empty style on bg-less themes)
 	Border      lipgloss.Style
 	BorderFocus lipgloss.Style
@@ -157,9 +170,13 @@ func NewTheme(name string, ascii bool) Theme {
 		return s
 	}
 
+	grad := logoGradient[name]
+
 	return Theme{
 		Name:        name,
 		Box:         box,
+		GradFrom:    grad[0],
+		GradTo:      grad[1],
 		Bg:          base,
 		Border:      fg(p.border),
 		BorderFocus: fg(p.borderFocus),
