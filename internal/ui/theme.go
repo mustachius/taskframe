@@ -172,7 +172,7 @@ func NewTheme(name string, ascii bool) Theme {
 
 	grad := logoGradient[name]
 
-	return Theme{
+	th := Theme{
 		Name:        name,
 		Box:         box,
 		GradFrom:    grad[0],
@@ -194,6 +194,23 @@ func NewTheme(name string, ascii bool) Theme {
 		Status:      withBg(lipgloss.NewStyle().Foreground(p.statusFg), p.statusBg),
 		StatusErr:   withBg(lipgloss.NewStyle().Foreground(p.statusErr), p.statusBg).Bold(true),
 	}
+
+	// The default dark theme paints no background, so on a light terminal its
+	// light-gray chrome would wash out. Make the grays adaptive (the colored
+	// accents already read on both backgrounds and stay as-is).
+	if name == "dark" {
+		adapt := func(light, dark string) lipgloss.Style {
+			return lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: light, Dark: dark})
+		}
+		th.Text = adapt("236", "252")
+		th.Dim = adapt("245", "243")
+		th.Done = adapt("245", "243").Strikethrough(true)
+		th.Border = adapt("250", "240")
+		th.BorderFocus = adapt("244", "252")
+		th.Title = adapt("242", "245")
+		th.TitleFocus = adapt("236", "255").Bold(true)
+	}
+	return th
 }
 
 // VisibleWidth returns the rendered cell width of a (possibly styled) string.
