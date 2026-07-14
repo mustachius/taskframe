@@ -190,6 +190,28 @@ func TestPromptBoxAlignsOnResize(t *testing.T) {
 	}
 }
 
+func TestDetailViewportScrolls(t *testing.T) {
+	tm, s := newTestModel(t)
+	// make task 1's detail tall enough to need scrolling
+	for i := 0; i < 20; i++ {
+		s.AddNote(1, fmt.Sprintf("note line %d", i))
+	}
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	m = run(t, m, "list")
+	m = drive(t, m, key("enter")) // open detail of the cursor task (id 1, most urgent)
+	if m.(model).mode != modeDetail {
+		t.Fatalf("expected modeDetail, got %d", m.(model).mode)
+	}
+	before := m.(model).detailVP.YOffset
+	m = drive(t, m, key("down"))
+	m = drive(t, m, key("down"))
+	if after := m.(model).detailVP.YOffset; after <= before {
+		t.Fatalf("detail viewport should scroll down: before=%d after=%d", before, after)
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	tm, _ := newTestModel(t)
 	var m tea.Model = tm
