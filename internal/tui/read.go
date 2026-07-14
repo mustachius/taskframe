@@ -57,7 +57,7 @@ func (r *Read) View(th Theme, w, h int) string {
 		bw = 84
 	}
 	bh := h - 4
-	rendered := strings.TrimRight(renderMarkdown(r.markdown(), bw-4, r.ascii), "\n")
+	rendered := strings.TrimRight(renderMarkdown(r.markdown(), bw-4, mdStyle(th, r.ascii)), "\n")
 	r.sc.setSize(bw-2, bh-2)
 	r.sc.setContent(rendered)
 	visible := strings.Split(r.sc.view(), "\n")

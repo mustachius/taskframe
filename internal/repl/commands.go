@@ -135,7 +135,7 @@ func (m model) dispatchSlash(line string) (tea.Model, tea.Cmd) {
 		if arg != "" {
 			if ui.NormalizeTheme(arg) != arg {
 				return m, m.emit(m.th.StatusErr.Render(m.lang.Tf("err.themeInvalid", arg)) +
-					m.th.Dim.Render(m.lang.T("hint.themes")))
+					m.th.Dim.Render("  ("+strings.Join(ui.ThemeNames, ", ")+")"))
 			}
 			name = arg
 		}
@@ -391,7 +391,11 @@ func (m model) cmdRead(args []string) tea.Cmd {
 				b.WriteString("### " + n.CreatedAt.Format("02/01/2006 15:04") + "\n\n" + n.Body + "\n\n")
 			}
 		}
-		md := ui.RenderMarkdown(b.String(), min(m.w, 100)-2, m.ascii)
+		mdStyle := m.th.MDStyle
+		if m.ascii {
+			mdStyle = "notty"
+		}
+		md := ui.RenderMarkdown(b.String(), min(m.w, 100)-2, mdStyle)
 		return resultMsg{lines: strings.Split(strings.TrimRight(md, "\n"), "\n")}
 	}
 }

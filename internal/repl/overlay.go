@@ -282,7 +282,11 @@ func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*
 		for _, n := range notes {
 			nb.WriteString("**" + n.CreatedAt.Format("02/01 15:04") + "** — " + n.Body + "\n\n")
 		}
-		md := ui.RenderMarkdown(nb.String(), w-2, ascii)
+		mdStyle := th.MDStyle
+		if ascii {
+			mdStyle = "notty"
+		}
+		md := ui.RenderMarkdown(nb.String(), w-2, mdStyle)
 		for _, ln := range strings.Split(strings.TrimRight(md, "\n"), "\n") {
 			add(ln)
 		}
