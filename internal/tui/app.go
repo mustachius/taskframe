@@ -155,6 +155,10 @@ func (a *App) openDetailCmd(id int64) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+		children, err := a.store.Children(id)
+		if err != nil {
+			return errMsg{err}
+		}
 		notes, err := a.store.Notes(id)
 		if err != nil {
 			return errMsg{err}
@@ -163,7 +167,7 @@ func (a *App) openDetailCmd(id int64) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
-		return detailLoadedMsg{t: t, notes: notes, acts: acts}
+		return detailLoadedMsg{t: t, children: children, notes: notes, acts: acts}
 	}
 }
 
@@ -197,7 +201,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case detailLoadedMsg:
-		a.modal = NewDetail(a.lang, msg.t, msg.notes, msg.acts)
+		a.modal = NewDetail(a.lang, msg.t, msg.children, msg.notes, msg.acts)
 		return a, nil
 
 	case formSubmittedMsg:

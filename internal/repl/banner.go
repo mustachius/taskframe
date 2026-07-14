@@ -37,9 +37,20 @@ func Banner(th ui.Theme, ascii bool, lang i18n.Lang) string {
 	if ascii {
 		wordmark = wordmarkASCII
 	}
+	// widest line drives the gradient ramp so color columns line up vertically.
+	maxW := 0
+	for _, line := range wordmark {
+		if n := len([]rune(line)); n > maxW {
+			maxW = n
+		}
+	}
 	var b strings.Builder
 	for _, line := range wordmark {
-		b.WriteString(th.Accent.Render(line))
+		if th.GradFrom != "" && th.GradTo != "" {
+			b.WriteString(ui.GradientLine(line, th.GradFrom, th.GradTo, maxW))
+		} else {
+			b.WriteString(th.Accent.Render(line))
+		}
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
