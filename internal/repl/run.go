@@ -21,7 +21,7 @@ type Options struct {
 // terminal's real scrollback while the prompt stays pinned at the bottom.
 func Run(s *store.Store, opts Options) error {
 	th := ui.NewTheme(opts.ThemeName, opts.ASCII)
-	fmt.Print("\n" + Banner(th) + "\n" + Hint(th) + "\n\n")
+	fmt.Print("\n" + Banner(th, opts.ASCII) + "\n" + Hint(th) + "\n\n")
 
 	p := tea.NewProgram(newModel(s, opts))
 	_, err := p.Run()
