@@ -79,8 +79,8 @@ var catalog = map[string][2]string{
 
 	// --- overlay / detail (repl) ---
 	"overlay.empty":  {" no tasks", " nenhuma tarefa"},
-	"overlay.hint":   {"  ↑↓ move · ←→ fold · a child · enter open · d done · x delete · esc close", "  ↑↓ move · ←→ recolhe · a filho · enter abre · d conclui · x deleta · esc fecha"},
-	"detail.footer":  {"  ↑↓ scroll · esc back", "  ↑↓ rola · esc volta"},
+	"overlay.hint":   {"  ↑↓ move · ←→ fold · a child · n note · enter open · d done · x delete · esc close", "  ↑↓ move · ←→ recolhe · a filho · n nota · enter abre · d conclui · x deleta · esc fecha"},
+	"detail.footer":  {"  ↑↓ scroll · n note · esc back", "  ↑↓ rola · n nota · esc volta"},
 	"detail.title":   {"task", "tarefa"},
 	"detail.titleN":  {"task %d", "tarefa %d"},
 	"list.title":     {"tasks", "tarefas"},

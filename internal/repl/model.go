@@ -71,6 +71,7 @@ type model struct {
 	noteTarget int64
 	noteTitle  string
 	noteInput  textinput.Model
+	noteReturn mode // where to return when the note prompt closes
 
 	pendingEcho string
 
@@ -144,17 +145,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.loadCachesCmd()
 
 	case openNoteMsg:
-		m.noteTarget = msg.id
-		m.noteTitle = msg.title
-		ni := textinput.New()
-		ni.Prompt = m.lang.T("note.promptGlyph")
-		ni.CharLimit = 500
-		ni.Cursor.SetMode(cursor.CursorStatic)
-		ni.Width = max(10, min(m.w, 60)-10)
-		ni.Focus()
-		m.noteInput = ni
-		m.mode = modeNote
-		return m, m.echoOnly()
+		// note <id> from the prompt: capture returns to the prompt.
+		return m.beginNote(msg.id, msg.title, modePrompt), m.echoOnly()
 
 	case detailLoadedMsg:
 		m.detail = msg.t
@@ -225,15 +217,34 @@ func (m model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "ctrl+c":
-		m.mode = modePrompt
-		return m, m.emit(m.th.Dim.Render(m.lang.T("note.cancelled")))
+		ret := m.noteReturn
+		m.mode = ret
+		if ret == modePrompt {
+			return m, m.emit(m.th.Dim.Render(m.lang.T("note.cancelled")))
+		}
+		return m, nil // returning to an overlay: no scrollback noise
 	case "enter":
 		body := strings.TrimSpace(m.noteInput.Value())
-		m.mode = modePrompt
-		if body == "" {
-			return m, m.emit(m.th.Dim.Render(m.lang.T("note.empty")))
-		}
+		ret := m.noteReturn
 		id := m.noteTarget
+		m.mode = ret
+		if body == "" {
+			if ret == modePrompt {
+				return m, m.emit(m.th.Dim.Render(m.lang.T("note.empty")))
+			}
+			return m, nil
+		}
+		if ret == modeDetail {
+			// add the note, then reload the detail so it shows immediately.
+			s, th := m.store, m.th
+			load := m.openDetailCmd(id)
+			return m, func() tea.Msg {
+				if _, err := s.AddNote(id, body); err != nil {
+					return errResult(th, err.Error())
+				}
+				return load()
+			}
+		}
 		return m, m.storeCmd(func() resultMsg {
 			if _, err := m.store.AddNote(id, body); err != nil {
 				return resultMsg{lines: []string{m.th.StatusErr.Render("x " + err.Error())}}
@@ -244,6 +255,29 @@ func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.noteInput, cmd = m.noteInput.Update(msg)
 	return m, cmd
+}
+
+// beginNote opens the note-capture box for task id, remembering where to return
+// (modePrompt for the `note` command, modeList/modeDetail for the `n` shortcut).
+func (m model) beginNote(id int64, title string, ret mode) model {
+	m.noteTarget = id
+	m.noteTitle = title
+	ni := textinput.New()
+	ni.Prompt = m.lang.T("note.promptGlyph")
+	ni.CharLimit = 500
+	ni.Cursor.SetMode(cursor.CursorStatic)
+	ni.Width = max(10, min(m.w, 60)-10)
+	ni.Focus()
+	m.noteInput = ni
+	m.noteReturn = ret
+	m.mode = modeNote
+	return m
+}
+
+// startAddNote opens the note box for t from an overlay (list or detail),
+// returning there when done. Mirrors startAddChild.
+func (m model) startAddNote(t *task.Task, ret mode) model {
+	return m.beginNote(t.ID, t.Title, ret)
 }
 
 // startAddChild opens the inline prompt to create a subtask under t, so the
