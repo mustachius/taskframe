@@ -6,6 +6,7 @@ package repl
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -27,6 +28,7 @@ const (
 	modeDetail
 	modeNote
 	modeAddChild
+	modeEdit
 )
 
 type model struct {
@@ -56,6 +58,7 @@ type model struct {
 	expanded   map[int64]bool // subtask fold state; absent = expanded
 	cursor     int
 	offset     int
+	flash      string // transient confirmation shown under the overlay footer
 
 	// add-child prompt (create a subtask under the cursor task)
 	addParent int64
@@ -72,6 +75,12 @@ type model struct {
 	noteTitle  string
 	noteInput  textinput.Model
 	noteReturn mode // where to return when the note prompt closes
+
+	// edit prompt (inline token editor over a task, from the list/detail)
+	editTarget int64
+	editTitle  string
+	editInput  textinput.Model
+	editReturn mode
 
 	pendingEcho string
 
@@ -133,6 +142,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listFilter = msg.filter
 		m.listSort = msg.sort
 		m.listLimit = msg.limit
+		m.flash = ""
 		m.cursor, m.offset = 0, 0
 		m.rebuildList()
 		m.cursor = 0
@@ -171,6 +181,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateNote(msg)
 		case modeAddChild:
 			return m.updateAddChild(msg)
+		case modeEdit:
+			return m.updateEdit(msg)
 		default:
 			return m.updatePrompt(msg)
 		}
@@ -245,6 +257,17 @@ func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return load()
 			}
 		}
+		if ret == modeList {
+			// visible feedback inside the overlay (scrollback is hidden behind it)
+			m.flash = m.lang.Tf("status.noteAdded", id)
+			s, th := m.store, m.th
+			return m, func() tea.Msg {
+				if _, err := s.AddNote(id, body); err != nil {
+					return errResult(th, err.Error())
+				}
+				return nil
+			}
+		}
 		return m, m.storeCmd(func() resultMsg {
 			if _, err := m.store.AddNote(id, body); err != nil {
 				return resultMsg{lines: []string{m.th.StatusErr.Render("x " + err.Error())}}
@@ -278,6 +301,66 @@ func (m model) beginNote(id int64, title string, ret mode) model {
 // returning there when done. Mirrors startAddChild.
 func (m model) startAddNote(t *task.Task, ret mode) model {
 	return m.beginNote(t.ID, t.Title, ret)
+}
+
+// startEdit opens the inline token editor for t from an overlay (list or
+// detail), returning there when done. Mirrors startAddNote.
+func (m model) startEdit(t *task.Task, ret mode) model {
+	m.editTarget = t.ID
+	m.editTitle = t.Title
+	ei := textinput.New()
+	ei.Prompt = m.lang.T("edit.promptGlyph")
+	ei.CharLimit = 500
+	ei.Cursor.SetMode(cursor.CursorStatic)
+	ei.Width = max(10, min(m.w, 60)-10)
+	ei.Focus()
+	m.editInput = ei
+	m.editReturn = ret
+	m.mode = modeEdit
+	return m
+}
+
+func (m model) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		m.mode = m.editReturn
+		return m, nil
+	case "enter":
+		tokens := strings.Fields(strings.TrimSpace(m.editInput.Value()))
+		ret := m.editReturn
+		id := m.editTarget
+		m.mode = ret
+		if len(tokens) == 0 {
+			return m, nil // nothing typed → no-op
+		}
+		s, th := m.store, m.th
+		if ret == modeDetail {
+			// apply, then reload the detail so the changed fields show
+			load := m.openDetailCmd(id)
+			return m, func() tea.Msg {
+				if err := applyEdit(s, id, tokens, time.Now()); err != nil {
+					return errResult(th, err.Error())
+				}
+				return load()
+			}
+		}
+		// list: apply, refresh the overlay, confirm with a flash
+		m.flash = m.lang.Tf("status.taskUpdated", id)
+		filter := m.listFilter
+		return m, func() tea.Msg {
+			if err := applyEdit(s, id, tokens, time.Now()); err != nil {
+				return errResult(th, err.Error())
+			}
+			tasks, err := s.List(filter)
+			if err != nil {
+				return errResult(th, err.Error())
+			}
+			return listRefreshMsg{tasks: tasks}
+		}
+	}
+	var cmd tea.Cmd
+	m.editInput, cmd = m.editInput.Update(msg)
+	return m, cmd
 }
 
 // startAddChild opens the inline prompt to create a subtask under t, so the
@@ -343,6 +426,11 @@ func (m model) View() string {
 	case modeAddChild:
 		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.lang.T("child.boxTitle")+ui.TruncRunes(m.addTitle, 30),
 			[]string{" " + m.addInput.View(), m.th.Dim.Render(m.lang.T("child.boxHint"))},
+			min(m.w, 60), 4, true)
+		return box
+	case modeEdit:
+		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.lang.T("edit.boxTitle")+ui.TruncRunes(m.editTitle, 30),
+			[]string{" " + m.editInput.View(), m.th.Dim.Render(m.lang.T("edit.boxHint"))},
 			min(m.w, 60), 4, true)
 		return box
 	default:

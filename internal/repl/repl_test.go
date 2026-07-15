@@ -2,6 +2,7 @@ package repl
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -376,6 +377,10 @@ func TestNoteFromList(t *testing.T) {
 	if notes, _ := s.Notes(1); len(notes) != 1 || notes[0].Body != "nota do pai" {
 		t.Fatalf("parent note not saved: %+v", notes)
 	}
+	// the overlay shows a visible confirmation (scrollback is hidden behind it)
+	if mm := m.(model); mm.flash == "" || !strings.Contains(stripANSI(m.View()), mm.flash) {
+		t.Fatalf("saving a note from the list should render a confirmation flash, view:\n%s", stripANSI(m.View()))
+	}
 
 	// move the cursor onto the subtask row and note it
 	for i := 0; i < len(m.(model).listRows); i++ {
@@ -395,6 +400,46 @@ func TestNoteFromList(t *testing.T) {
 	m = drive(t, m, key("enter"))
 	if notes, _ := s.Notes(childID); len(notes) != 1 || notes[0].Body != "nota da subtarefa" {
 		t.Fatalf("subtask note not saved: %+v", notes)
+	}
+}
+
+// TestNoteFromListPersistsFileDB drives the exact user flow against a real
+// file-backed DB (not in-memory) and then opens the detail — the way a user
+// would verify — to prove the note is saved and visible.
+func TestNoteFromListPersistsFileDB(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.Open(filepath.Join(dir, "tf.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.AddTask(&task.Task{Title: "Comprar leite"}); err != nil {
+		t.Fatal(err)
+	}
+
+	tm := newModel(s, Options{})
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	m = run(t, m, "list")
+	id := m.(model).cursorTask().ID
+
+	m = drive(t, m, key("n"))
+	if m.(model).mode != modeNote {
+		t.Fatalf("n did not open the note box, mode=%d", m.(model).mode)
+	}
+	m = typeText(t, m, "salvar isso")
+	m = drive(t, m, key("enter"))
+
+	notes, _ := s.Notes(id)
+	if len(notes) != 1 || notes[0].Body != "salvar isso" {
+		t.Fatalf("note not saved to file DB: %+v", notes)
+	}
+	// verify the way a user would: open the detail and see the note
+	m = drive(t, m, key("enter")) // enter on the list row → detail
+	full := stripANSI(strings.Join(m.(model).detailLines, "\n"))
+	if !strings.Contains(full, "salvar isso") {
+		t.Fatalf("note not visible in detail after saving from list:\n%s", full)
 	}
 }
 
@@ -451,6 +496,134 @@ func TestNoteCancelFromListIsSilent(t *testing.T) {
 	}
 	if len(mm.transcript) != before {
 		t.Fatalf("cancel should not emit scrollback, transcript grew: %v", mm.transcript[before:])
+	}
+}
+
+// TestDeleteFromListRemovesRow: deleting a task from the list overlay must make
+// its row disappear immediately (the reload:true path only refreshed caches, so
+// the row lingered and looked undeleted).
+func TestDeleteFromListRemovesRow(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "list")
+	before := len(m.(model).listRows)
+	target := m.(model).cursorTask()
+	if target == nil {
+		t.Fatal("no task under cursor")
+	}
+	id := target.ID
+
+	m = drive(t, m, key("x"))
+	mm := m.(model)
+
+	// the row is gone from the overlay
+	for _, r := range mm.listRows {
+		if r.t.ID == id {
+			t.Fatalf("deleted task %d still visible in the list", id)
+		}
+	}
+	if len(mm.listRows) != before-1 {
+		t.Fatalf("expected %d rows after delete, got %d", before-1, len(mm.listRows))
+	}
+	// still present in the store as a soft delete (undo can bring it back)
+	all, _ := s.List(task.Filter{IncludeAll: true})
+	var deleted bool
+	for _, tk := range all {
+		if tk.ID == id {
+			deleted = tk.Status == task.StatusDeleted
+		}
+	}
+	if !deleted {
+		t.Fatalf("task %d should be soft-deleted, not gone", id)
+	}
+	// visible confirmation inside the overlay
+	if mm.flash == "" || !strings.Contains(stripANSI(m.View()), mm.flash) {
+		t.Fatalf("delete should render a confirmation flash, view:\n%s", stripANSI(m.View()))
+	}
+}
+
+// TestEditFromList: `e` on the highlighted task opens the inline token editor,
+// applies the tokens (no id typed), refreshes the overlay and flashes.
+func TestEditFromList(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "list")
+	target := m.(model).cursorTask()
+	if target == nil {
+		t.Fatal("no task under cursor")
+	}
+	id := target.ID
+
+	m = drive(t, m, key("e"))
+	if mm := m.(model); mm.mode != modeEdit || mm.editReturn != modeList || mm.editTarget != id {
+		t.Fatalf("e should open edit for the cursor task: mode=%d ret=%d target=%d",
+			mm.mode, mm.editReturn, mm.editTarget)
+	}
+	m = typeText(t, m, "pro:novoprojeto +extra prio:L")
+	m = drive(t, m, key("enter"))
+
+	if m.(model).mode != modeList {
+		t.Fatalf("should return to list after edit, mode=%d", m.(model).mode)
+	}
+	got, _ := s.GetTask(id)
+	if got.Project != "novoprojeto" {
+		t.Fatalf("project not edited: %q", got.Project)
+	}
+	hasExtra := false
+	for _, tg := range got.Tags { // +tag amends the set
+		if tg == "extra" {
+			hasExtra = true
+		}
+	}
+	if !hasExtra {
+		t.Fatalf("tag not added: %v", got.Tags)
+	}
+	if got.Priority != task.PriorityLow {
+		t.Fatalf("priority not edited: %q", got.Priority)
+	}
+	if mm := m.(model); mm.flash == "" || !strings.Contains(stripANSI(m.View()), mm.flash) {
+		t.Fatalf("edit from list should render a confirmation flash, view:\n%s", stripANSI(m.View()))
+	}
+}
+
+// TestEditFromDetail: `e` in the detail view edits the task (free text retitles)
+// and reloads the detail so the change is visible immediately.
+func TestEditFromDetail(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "list")
+	m = drive(t, m, key("enter")) // open detail of the cursor task
+	if m.(model).mode != modeDetail {
+		t.Fatalf("enter should open detail, got %d", m.(model).mode)
+	}
+	id := m.(model).detail.ID
+
+	m = drive(t, m, key("e"))
+	if mm := m.(model); mm.mode != modeEdit || mm.editReturn != modeDetail {
+		t.Fatalf("e in detail should open a detail-return edit: mode=%d ret=%d", mm.mode, mm.editReturn)
+	}
+	m = typeText(t, m, "novo titulo via detalhe")
+	m = drive(t, m, key("enter"))
+
+	mm := m.(model)
+	if mm.mode != modeDetail {
+		t.Fatalf("editing from detail should reload the detail, mode=%d", mm.mode)
+	}
+	if got, _ := s.GetTask(id); got.Title != "novo titulo via detalhe" {
+		t.Fatalf("title not edited: %q", got.Title)
+	}
+	full := stripANSI(strings.Join(mm.detailLines, "\n"))
+	if !strings.Contains(full, "novo titulo via detalhe") {
+		t.Fatalf("reloaded detail should show the new title:\n%s", full)
 	}
 }
 
