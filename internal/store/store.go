@@ -12,8 +12,13 @@ import (
 )
 
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string // on-disk DB file ("" for in-memory); exposed via Path()
 }
+
+// Path returns the on-disk database file, or "" for an in-memory store.
+// Sync/backup need a real file, so "" signals those features are unavailable.
+func (s *Store) Path() string { return s.path }
 
 // DefaultPath returns the DB location: TASKFRAME_DB env var if set,
 // otherwise %APPDATA%\taskframe\taskframe.db (or the OS equivalent).
@@ -40,7 +45,7 @@ func Open(path string) (*Store, error) {
 	}
 	// One connection sidesteps SQLite write-lock contention entirely.
 	db.SetMaxOpenConns(1)
-	s := &Store{db: db}
+	s := &Store{db: db, path: path}
 	if err := s.migrate(); err != nil {
 		db.Close()
 		return nil, err
