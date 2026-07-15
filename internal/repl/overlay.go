@@ -92,6 +92,10 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if t := m.cursorTask(); t != nil {
 			return m.startAddChild(t), nil
 		}
+	case "n":
+		if t := m.cursorTask(); t != nil {
+			return m.startAddNote(t, modeList), nil
+		}
 	case "enter":
 		if t := m.cursorTask(); t != nil {
 			return m, m.openDetailCmd(t.ID)
@@ -204,6 +208,10 @@ func (m model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc", "enter", "q":
 		m.mode = modeList
 		return m, nil
+	case "n":
+		if m.detail != nil {
+			return m.startAddNote(m.detail, modeDetail), nil
+		}
 	}
 	var cmd tea.Cmd
 	m.detailVP, cmd = m.detailVP.Update(msg)

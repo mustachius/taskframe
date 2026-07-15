@@ -338,6 +338,122 @@ func TestSubCommand(t *testing.T) {
 	}
 }
 
+// TestNoteFromList covers the `n` shortcut in the list overlay for both a
+// top-level task and a subtask (the "e subtarefas" part of the request).
+func TestNoteFromList(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	// a subtask under task 1 so we can note a child too
+	m = run(t, m, "sub 1 comprar pão")
+	kids, _ := s.Children(1)
+	if len(kids) != 1 {
+		t.Fatalf("subtask not created: %+v", kids)
+	}
+	childID := kids[0].ID
+
+	m = run(t, m, "list")
+	if m.(model).mode != modeList {
+		t.Fatalf("expected modeList, got %d", m.(model).mode)
+	}
+
+	// note on the parent (cursor starts at row 0 = task 1)
+	if p := m.(model).cursorTask(); p == nil || p.ID != 1 {
+		t.Fatalf("cursor row 0 should be task 1, got %+v", p)
+	}
+	m = drive(t, m, key("n"))
+	if mm := m.(model); mm.mode != modeNote || mm.noteReturn != modeList || mm.noteTarget != 1 {
+		t.Fatalf("n should open a list-return note for task 1: mode=%d ret=%d target=%d",
+			mm.mode, mm.noteReturn, mm.noteTarget)
+	}
+	m = typeText(t, m, "nota do pai")
+	m = drive(t, m, key("enter"))
+	if m.(model).mode != modeList {
+		t.Fatalf("should return to list after saving, mode=%d", m.(model).mode)
+	}
+	if notes, _ := s.Notes(1); len(notes) != 1 || notes[0].Body != "nota do pai" {
+		t.Fatalf("parent note not saved: %+v", notes)
+	}
+
+	// move the cursor onto the subtask row and note it
+	for i := 0; i < len(m.(model).listRows); i++ {
+		if ct := m.(model).cursorTask(); ct != nil && ct.ID == childID {
+			break
+		}
+		m = drive(t, m, key("down"))
+	}
+	if ct := m.(model).cursorTask(); ct == nil || ct.ID != childID {
+		t.Fatalf("could not put cursor on subtask %d", childID)
+	}
+	m = drive(t, m, key("n"))
+	if mm := m.(model); mm.noteTarget != childID {
+		t.Fatalf("note target should be subtask %d, got %d", childID, mm.noteTarget)
+	}
+	m = typeText(t, m, "nota da subtarefa")
+	m = drive(t, m, key("enter"))
+	if notes, _ := s.Notes(childID); len(notes) != 1 || notes[0].Body != "nota da subtarefa" {
+		t.Fatalf("subtask note not saved: %+v", notes)
+	}
+}
+
+// TestNoteFromDetail covers `n` in the detail overlay: it saves the note and
+// reloads the detail so the new note is visible immediately.
+func TestNoteFromDetail(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "list")
+	m = drive(t, m, key("enter")) // open detail of task 1 (cursor row 0)
+	if m.(model).mode != modeDetail {
+		t.Fatalf("enter should open detail, got %d", m.(model).mode)
+	}
+	target := m.(model).detail.ID
+
+	m = drive(t, m, key("n"))
+	if mm := m.(model); mm.mode != modeNote || mm.noteReturn != modeDetail {
+		t.Fatalf("n in detail should open a detail-return note: mode=%d ret=%d", mm.mode, mm.noteReturn)
+	}
+	m = typeText(t, m, "anotado no detalhe")
+	m = drive(t, m, key("enter"))
+
+	mm := m.(model)
+	if mm.mode != modeDetail {
+		t.Fatalf("saving from detail should reload the detail, mode=%d", mm.mode)
+	}
+	full := stripANSI(strings.Join(mm.detailLines, "\n"))
+	if !strings.Contains(full, "anotado no detalhe") {
+		t.Fatalf("reloaded detail should show the new note:\n%s", full)
+	}
+	if notes, _ := s.Notes(target); len(notes) != 1 || notes[0].Body != "anotado no detalhe" {
+		t.Fatalf("detail note not saved: %+v", notes)
+	}
+}
+
+// TestNoteCancelFromListIsSilent verifies esc from a list-launched note returns
+// to the list without emitting a scrollback line (no noise behind the overlay).
+func TestNoteCancelFromListIsSilent(t *testing.T) {
+	tm, _ := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "list")
+	m = drive(t, m, key("n"))
+	before := len(m.(model).transcript)
+	m = drive(t, m, key("esc"))
+	mm := m.(model)
+	if mm.mode != modeList {
+		t.Fatalf("esc should return to list, mode=%d", mm.mode)
+	}
+	if len(mm.transcript) != before {
+		t.Fatalf("cancel should not emit scrollback, transcript grew: %v", mm.transcript[before:])
+	}
+}
+
 func TestFlattenTreeCollapse(t *testing.T) {
 	parent := &task.Task{ID: 1, Title: "pai"}
 	c1 := &task.Task{ID: 2, Title: "a", ParentID: 1}
