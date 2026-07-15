@@ -16,10 +16,13 @@ var catalog = map[string][2]string{
 	"prompt.placeholder": {"add task… · list · /help", "add tarefa… · list · /help"},
 	"note.promptGlyph":   {"note› ", "nota› "},
 	"child.promptGlyph":  {"child› ", "filho› "},
+	"edit.promptGlyph":   {"edit› ", "editar› "},
 	"note.boxTitle":      {"note · ", "nota · "},
 	"note.boxHint":       {" enter saves · esc cancels", " enter salva · esc cancela"},
 	"child.boxTitle":     {"child of · ", "filho de · "},
 	"child.boxHint":      {" enter creates · esc cancels", " enter cria · esc cancela"},
+	"edit.boxTitle":      {"edit · ", "editar · "},
+	"edit.boxHint":       {" pro:x +tag due:… prio:H · enter applies · esc cancels", " pro:x +tag due:… prio:H · enter aplica · esc cancela"},
 	"note.cancelled":     {"  (note cancelled)", "  (nota cancelada)"},
 	"note.empty":         {"  (empty note, ignored)", "  (nota vazia, ignorada)"},
 
@@ -79,8 +82,8 @@ var catalog = map[string][2]string{
 
 	// --- overlay / detail (repl) ---
 	"overlay.empty":  {" no tasks", " nenhuma tarefa"},
-	"overlay.hint":   {"  ↑↓ move · ←→ fold · a child · n note · enter open · d done · x delete · esc close", "  ↑↓ move · ←→ recolhe · a filho · n nota · enter abre · d conclui · x deleta · esc fecha"},
-	"detail.footer":  {"  ↑↓ scroll · n note · esc back", "  ↑↓ rola · n nota · esc volta"},
+	"overlay.hint":   {"  ↑↓ move · ←→ fold · a child · n note · e edit · enter open · d done · x delete · esc close", "  ↑↓ move · ←→ recolhe · a filho · n nota · e edita · enter abre · d conclui · x deleta · esc fecha"},
+	"detail.footer":  {"  ↑↓ scroll · n note · e edit · esc back", "  ↑↓ rola · n nota · e edita · esc volta"},
 	"detail.title":   {"task", "tarefa"},
 	"detail.titleN":  {"task %d", "tarefa %d"},
 	"list.title":     {"tasks", "tarefas"},

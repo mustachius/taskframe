@@ -58,6 +58,7 @@ func (m model) cursorTask() *task.Task {
 }
 
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.flash = "" // any key dismisses the transient confirmation
 	switch msg.String() {
 	case "esc", "q":
 		m.mode = modePrompt
@@ -96,6 +97,10 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if t := m.cursorTask(); t != nil {
 			return m.startAddNote(t, modeList), nil
 		}
+	case "e":
+		if t := m.cursorTask(); t != nil {
+			return m.startEdit(t, modeList), nil
+		}
 	case "enter":
 		if t := m.cursorTask(); t != nil {
 			return m, m.openDetailCmd(t.ID)
@@ -107,12 +112,19 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "x":
 		if t := m.cursorTask(); t != nil {
 			id := t.ID
-			return m, m.storeCmd(func() resultMsg {
-				if err := m.store.DeleteTask(id); err != nil {
-					return errResult(m.th, err.Error())
+			m.flash = m.lang.Tf("status.taskDeleted", id)
+			filter := m.listFilter
+			s, th := m.store, m.th
+			return m, func() tea.Msg {
+				if err := s.DeleteTask(id); err != nil {
+					return errResult(th, err.Error())
 				}
-				return resultMsg{lines: []string{m.th.Dim.Render(m.lang.Tf("status.taskDeleted", id))}, reload: true}
-			})
+				tasks, err := s.List(filter) // re-query so the row disappears
+				if err != nil {
+					return errResult(th, err.Error())
+				}
+				return listRefreshMsg{tasks: tasks}
+			}
 		}
 	}
 	return m, nil
@@ -200,7 +212,11 @@ func (m model) viewList() string {
 	if len(m.listRows) > 0 {
 		pos = m.th.Dim.Render(fmt.Sprintf("  %d/%d", m.cursor+1, len(m.listRows)))
 	}
-	return box + "\n" + hint + pos
+	out := box + "\n" + hint + pos
+	if m.flash != "" {
+		out += "\n" + m.th.Accent.Render(m.flash) // flash strings already indent
+	}
+	return out
 }
 
 func (m model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -211,6 +227,10 @@ func (m model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		if m.detail != nil {
 			return m.startAddNote(m.detail, modeDetail), nil
+		}
+	case "e":
+		if m.detail != nil {
+			return m.startEdit(m.detail, modeDetail), nil
 		}
 	}
 	var cmd tea.Cmd

@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
 	"github.com/mustachius/taskframe/internal/ui"
 )
@@ -409,42 +410,48 @@ func (m model) cmdEdit(args []string) tea.Cmd {
 		if err != nil {
 			return errResult(m.th, m.lang.Tf("err.idInvalid", args[0]))
 		}
-		t, err := m.store.GetTask(id)
-		if err != nil {
-			return errResult(m.th, err.Error())
-		}
-		parsed, pf, title, perr := task.ParseTokens(args[1:], time.Now())
-		if perr != nil {
-			return errResult(m.th, perr.Error())
-		}
-		// only apply fields that were provided (edit sets, never clears in v1)
-		if title != "" {
-			t.Title = title
-		}
-		if parsed.Project != "" {
-			t.Project = parsed.Project
-		}
-		if parsed.Priority != "" {
-			t.Priority = parsed.Priority
-		}
-		if parsed.Due != nil {
-			t.Due = parsed.Due
-		}
-		if parsed.Wait != nil {
-			t.Wait = parsed.Wait
-		}
-		if parsed.Recur != "" {
-			t.Recur = parsed.Recur
-		}
-		// tags amend the existing set: +tag adds, -tag removes (no overwrite)
-		if len(parsed.Tags) > 0 || len(pf.ExcludeTags) > 0 {
-			t.Tags = task.MergeTags(t.Tags, parsed.Tags, pf.ExcludeTags)
-		}
-		if err := m.store.UpdateTask(t); err != nil {
+		if err := applyEdit(m.store, id, args[1:], time.Now()); err != nil {
 			return errResult(m.th, err.Error())
 		}
 		return resultMsg{lines: []string{m.th.Accent.Render(m.lang.Tf("status.taskUpdated", id))}, reload: true}
 	}
+}
+
+// applyEdit sets the fields named by tokens on task id: it only sets fields that
+// were provided (edit never clears in v1), and tags amend the existing set
+// (+tag adds, -tag removes). Free text becomes the new title. Shared by the
+// `edit` command and the list/detail `e` shortcut.
+func applyEdit(s *store.Store, id int64, tokens []string, now time.Time) error {
+	t, err := s.GetTask(id)
+	if err != nil {
+		return err
+	}
+	parsed, pf, title, err := task.ParseTokens(tokens, now)
+	if err != nil {
+		return err
+	}
+	if title != "" {
+		t.Title = title
+	}
+	if parsed.Project != "" {
+		t.Project = parsed.Project
+	}
+	if parsed.Priority != "" {
+		t.Priority = parsed.Priority
+	}
+	if parsed.Due != nil {
+		t.Due = parsed.Due
+	}
+	if parsed.Wait != nil {
+		t.Wait = parsed.Wait
+	}
+	if parsed.Recur != "" {
+		t.Recur = parsed.Recur
+	}
+	if len(parsed.Tags) > 0 || len(pf.ExcludeTags) > 0 {
+		t.Tags = task.MergeTags(t.Tags, parsed.Tags, pf.ExcludeTags)
+	}
+	return s.UpdateTask(t)
 }
 
 func (m model) cmdMove(args []string) tea.Cmd {
