@@ -183,6 +183,7 @@ usage:
   taskframe purge               permanently remove deleted tasks
   taskframe export              full JSON backup to stdout
   taskframe import [--replace] <file>   restore backup (--replace overwrites)
+  taskframe sync [init <url>|status|pull|push]   git sync across machines
 
 reports (accept extra tokens, e.g. taskframe next pro:work):
   next            most urgent pending (top 15)
@@ -222,6 +223,7 @@ uso:
   taskframe purge               remove definitivamente tarefas deletadas
   taskframe export              backup JSON completo no stdout
   taskframe import [--replace] <arquivo>   restaura backup (--replace sobrescreve)
+  taskframe sync [init <url>|status|pull|push]   sincroniza via git entre máquinas
 
 reports (aceitam tokens extras, ex: taskframe next pro:work):
   next            pendências mais urgentes (top 15)
@@ -279,6 +281,33 @@ tokens (add e list):
 	"cli.render.noTasks":    {"no tasks", "nenhuma tarefa"},
 	"cli.render.countLimit": {"\n%d of %d task(s) (limit %d)\n", "\n%d de %d tarefa(s) (limite %d)\n"},
 	"cli.render.count":      {"\n%d task(s)\n", "\n%d tarefa(s)\n"},
+
+	// --- sync (git) ---
+	"cli.sync.usage":           {"usage: taskframe sync [init <git-url> [--pull-wins|--push-wins]|status|pull|push]", "uso: taskframe sync [init <git-url> [--pull-wins|--push-wins]|status|pull|push]"},
+	"cli.sync.gitMissing":      {"git not found in PATH — install git to use sync", "git não encontrado no PATH — instale o git para usar o sync"},
+	"cli.sync.notConfigured":   {"sync not configured — run: taskframe sync init <git-remote-url>", "sync não configurado — rode: taskframe sync init <git-remote-url>"},
+	"cli.sync.alreadyInit":     {"sync already initialized (%s) — remove that folder to re-init", "sync já inicializado (%s) — remova essa pasta para reinicializar"},
+	"cli.sync.initDone":        {"sync initialized: %s -> %s", "sync inicializado: %s -> %s"},
+	"cli.sync.adopted":         {"adopted remote data: %d task(s), %d note(s)", "dados do remoto adotados: %d tarefa(s), %d nota(s)"},
+	"cli.sync.bothData":        {"local and remote both have data — re-run: sync init <url> --pull-wins (adopt remote, backs up local) or --push-wins (publish local)", "local e remoto têm dados — rode: sync init <url> --pull-wins (adota o remoto, faz backup do local) ou --push-wins (publica o local)"},
+	"cli.sync.upToDate":        {"already up to date", "já está atualizado"},
+	"cli.sync.pulled":          {"pulled remote changes", "baixou as mudanças do remoto"},
+	"cli.sync.pushed":          {"pushed local changes", "publicou as mudanças locais"},
+	"cli.sync.firstPush":       {"published local data to remote", "publicou os dados locais no remoto"},
+	"cli.sync.diverged":        {"local and remote both changed since last sync — run 'taskframe sync pull' (adopt remote) or 'taskframe sync push' (publish local)", "local e remoto mudaram desde o último sync — rode 'taskframe sync pull' (adota o remoto) ou 'taskframe sync push' (publica o local)"},
+	"cli.sync.remoteEmpty":     {"remote has no data yet — nothing to pull", "o remoto ainda não tem dados — nada a baixar"},
+	"cli.sync.backup":          {"local database backed up to %s", "banco local salvo em backup: %s"},
+	"cli.sync.authFailed":      {"git authentication failed — make sure you can push to %s (GitHub credential manager or SSH key)", "falha de autenticação do git — confirme que você consegue dar push em %s (gerenciador de credenciais do GitHub ou chave SSH)"},
+	"cli.sync.pushRejected":    {"remote moved during sync — run taskframe sync again", "o remoto mudou durante o sync — rode taskframe sync de novo"},
+	"cli.sync.status.repo":     {"clone:  %s", "clone:  %s"},
+	"cli.sync.status.remote":   {"remote: %s", "remoto: %s"},
+	"cli.sync.status.branch":   {"branch: %s", "branch: %s"},
+	"cli.sync.status.state":    {"state:  %s", "estado: %s"},
+	"cli.sync.status.dirty":    {"(working tree has uncommitted changes)", "(a árvore de trabalho tem mudanças não commitadas)"},
+	"cli.sync.status.diverged": {"diverged (pull or push to resolve)", "divergiu (pull ou push para resolver)"},
+	"cli.sync.status.toPush":   {"local changes to push", "mudanças locais para publicar"},
+	"cli.sync.status.toPull":   {"remote changes to pull", "mudanças do remoto para baixar"},
+	"cli.sync.status.clean":    {"up to date", "atualizado"},
 
 	// --- TUI form ---
 	"form.title":            {"Title", "Título"},

@@ -51,6 +51,8 @@ func Run(s *store.Store, args []string, lang i18n.Lang) error {
 		return cmdExport(s)
 	case "import":
 		return cmdImport(s, rest, lang)
+	case "sync":
+		return cmdSync(s, rest, lang)
 	case "help", "-h", "--help":
 		printHelp(lang)
 		return nil
