@@ -114,10 +114,7 @@ func (d *Detail) View(th Theme, w, h int) string {
 		bar := progressBar(float64(done)/float64(len(d.children)), 12, th)
 		add(" " + th.TitleFocus.Render(d.lang.Tf("detail.subtasks", done, len(d.children))) + "  " + bar)
 		for _, c := range d.children {
-			mark := "[ ]"
-			if c.Status == task.StatusDone {
-				mark = "[x]"
-			}
+			mark := statusMark(c, d.ascii)
 			add(" " + th.Dim.Render(mark+" ") + th.Text.Render(truncRunes(c.Title, w-20)))
 		}
 	}
