@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
 )
@@ -180,6 +181,39 @@ func TestHeaderAdaptive(t *testing.T) {
 	}
 	if n := len(strings.Split(frame, "\n")); n != 20 {
 		t.Errorf("expected 20 lines, got %d", n)
+	}
+}
+
+func TestLanguageToggle(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	m = drive(t, m, key("L"))
+	if a.lang != i18n.PT {
+		t.Fatalf("expected pt-br after L, got %q", a.lang)
+	}
+	if v, _ := s.Language(); v != "pt-br" {
+		t.Fatalf("language not persisted, setting=%q", v)
+	}
+	if a.search.Prompt != a.lang.T("app.searchPrompt") {
+		t.Errorf("search prompt not re-localized: %q", a.search.Prompt)
+	}
+	frame := stripANSI(m.View())
+	for _, want := range []string{"Hoje", "Projetos", "tarefa(s)"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("frame missing localized %q", want)
+		}
+	}
+
+	m = drive(t, m, key("L")) // toggle back
+	if a.lang != i18n.EN {
+		t.Fatalf("expected en after second L, got %q", a.lang)
+	}
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "Today") {
+		t.Error("frame should be back to English")
 	}
 }
 
