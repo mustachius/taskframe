@@ -114,6 +114,17 @@ func (l *TaskList) Move(delta int) {
 	}
 }
 
+// MoveTo puts the cursor on absolute row i, clamped like Move (mouse click).
+func (l *TaskList) MoveTo(i int) {
+	l.cursor = i
+	if l.cursor >= len(l.rows) {
+		l.cursor = len(l.rows) - 1
+	}
+	if l.cursor < 0 {
+		l.cursor = 0
+	}
+}
+
 func (l *TaskList) Home() { l.cursor = 0 }
 func (l *TaskList) End() {
 	if len(l.rows) > 0 {

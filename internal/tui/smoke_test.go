@@ -725,3 +725,116 @@ func TestNoteMultiline(t *testing.T) {
 		t.Error("expected noteAdded status after save")
 	}
 }
+
+// --- mouse ---
+
+func click(x, y int) tea.MouseMsg {
+	return tea.MouseMsg{X: x, Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}
+}
+
+func wheel(x, y int, up bool) tea.MouseMsg {
+	b := tea.MouseButtonWheelDown
+	if up {
+		b = tea.MouseButtonWheelUp
+	}
+	return tea.MouseMsg{X: x, Y: y, Action: tea.MouseActionPress, Button: b}
+}
+
+func TestHeaderHeightMatchesRender(t *testing.T) {
+	a, _ := newTestApp(t)
+	for _, size := range [][2]int{{100, 30}, {100, 20}} {
+		a.w, a.h = size[0], size[1]
+		if got, want := a.headerHeight(), len(a.renderHeader()); got != want {
+			t.Errorf("%dx%d: headerHeight()=%d, renderHeader()=%d", size[0], size[1], got, want)
+		}
+	}
+	a.ascii = true
+	a.w, a.h = 100, 30
+	if got, want := a.headerHeight(), len(a.renderHeader()); got != want {
+		t.Errorf("ascii: headerHeight()=%d, renderHeader()=%d", got, want)
+	}
+}
+
+func TestMouseWheelMovesListCursor(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	m = drive(t, m, wheel(60, 15, false))
+	if a.list.cursor != 3 { // 4 rows: wheel of 3 clamps to the last index
+		t.Errorf("wheel down should move the list cursor by 3, got %d", a.list.cursor)
+	}
+	m = drive(t, m, wheel(60, 15, true))
+	if a.list.cursor != 0 {
+		t.Errorf("wheel up should move back, got %d", a.list.cursor)
+	}
+	_ = m
+}
+
+func TestMouseClickSelectsAndOpens(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	// header = 6 rows at 100x30, +1 top border → first list row at Y=7
+	m = drive(t, m, click(60, 8)) // second row
+	if a.list.cursor != 1 || a.focus != focusList {
+		t.Fatalf("click should select row 1 and focus the list, cursor=%d", a.list.cursor)
+	}
+	if a.modal != nil {
+		t.Fatal("first click must not open the detail")
+	}
+	m = drive(t, m, click(60, 8)) // same row again → detail
+	if _, ok := a.modal.(*Detail); !ok {
+		t.Fatalf("clicking the selected row should open the detail, got %T", a.modal)
+	}
+
+	// wheel scrolls the open detail (reduceMotion → offset jumps instantly)
+	d := a.modal.(*Detail)
+	d.sc.setSize(40, 3)
+	d.sc.setContent(strings.Repeat("line\n", 30))
+	m = drive(t, m, wheel(60, 10, false))
+	if d.sc.vp.YOffset == 0 {
+		t.Error("wheel should scroll the detail viewport")
+	}
+	_ = m
+}
+
+func TestMouseClickSidebar(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	// sidebar row 1 = project "casa" (row 0 is "(all)"); first row at Y=7
+	m = drive(t, m, click(5, 8))
+	if a.focus != focusSidebar {
+		t.Fatal("sidebar click should focus the sidebar")
+	}
+	if got := a.sidebar.Title(a.lang); got != "Tasks: casa" {
+		t.Fatalf("click should select project casa, got %q", got)
+	}
+	frame := stripANSI(m.View())
+	if strings.Contains(frame, "Revisar relatório") {
+		t.Error("casa filter should hide trabalho tasks")
+	}
+
+	// clicking a separator row is a no-op (keeps the selection)
+	before := a.sidebar.cursor
+	sepRow := -1
+	for i, it := range a.sidebar.items {
+		if it.kind == sbSeparator && i >= a.sidebar.offset {
+			sepRow = i - a.sidebar.offset
+			break
+		}
+	}
+	if sepRow >= 0 {
+		m = drive(t, m, click(5, 7+sepRow))
+		if a.sidebar.cursor != before {
+			t.Error("clicking a separator must not move the sidebar cursor")
+		}
+	}
+	_ = m
+}

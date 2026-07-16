@@ -252,6 +252,16 @@ func (s *Sidebar) CurrentProject() string {
 	return ""
 }
 
+// SetCursor moves the selection to item i (mouse click); refuses separators
+// and out-of-range indexes.
+func (s *Sidebar) SetCursor(i int) bool {
+	if i < 0 || i >= len(s.items) || s.items[i].kind == sbSeparator {
+		return false
+	}
+	s.cursor = i
+	return true
+}
+
 // CurrentContext returns the context name under the cursor, if any.
 func (s *Sidebar) CurrentContext() (string, bool) {
 	if s.cursor < len(s.items) && s.items[s.cursor].kind == sbContext {
