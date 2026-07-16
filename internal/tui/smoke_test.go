@@ -61,6 +61,8 @@ func key(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyF2}
 	case "ctrl+u":
 		return tea.KeyMsg{Type: tea.KeyCtrlU}
+	case "ctrl+d":
+		return tea.KeyMsg{Type: tea.KeyCtrlD}
 	default:
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 	}
@@ -691,5 +693,35 @@ func TestFrameLineWidths(t *testing.T) {
 					size.Width, size.Height, i, n, size.Width, ln)
 			}
 		}
+	}
+}
+
+// TestNoteMultiline drives the NotePrompt modal: enter breaks the line,
+// ctrl+d saves the multi-line body.
+func TestNoteMultiline(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	id := a.list.CursorID()
+	m = drive(t, m, key("n"))
+	if _, ok := a.modal.(*NotePrompt); !ok {
+		t.Fatalf("n should open the note prompt, got %T", a.modal)
+	}
+	m = typeText(t, m, "linha um")
+	m = drive(t, m, key("enter")) // newline, not submit
+	if a.modal == nil {
+		t.Fatal("enter must not close the note prompt")
+	}
+	m = typeText(t, m, "linha dois")
+	m = drive(t, m, key("ctrl+d"))
+
+	notes, _ := s.Notes(id)
+	if len(notes) != 1 || notes[0].Body != "linha um\nlinha dois" {
+		t.Fatalf("multi-line note not saved: %+v", notes)
+	}
+	if !strings.Contains(stripANSI(m.View()), "note added") {
+		t.Error("expected noteAdded status after save")
 	}
 }

@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
@@ -70,10 +72,10 @@ type model struct {
 	detailLines []string
 	detailVP    viewport.Model
 
-	// note prompt
+	// note prompt (multi-line: enter breaks the line, ctrl+d saves)
 	noteTarget int64
 	noteTitle  string
-	noteInput  textinput.Model
+	noteInput  textarea.Model
 	noteReturn mode // where to return when the note prompt closes
 
 	// edit prompt (inline token editor over a task, from the list/detail)
@@ -235,7 +237,9 @@ func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.emit(m.th.Dim.Render(m.lang.T("note.cancelled")))
 		}
 		return m, nil // returning to an overlay: no scrollback noise
-	case "enter":
+	// ctrl+d saves. It MUST be intercepted here, before noteInput.Update —
+	// textarea's default keymap binds ctrl+d to delete-character-forward.
+	case "ctrl+d":
 		body := strings.TrimSpace(m.noteInput.Value())
 		ret := m.noteReturn
 		id := m.noteTarget
@@ -282,16 +286,22 @@ func (m model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // beginNote opens the note-capture box for task id, remembering where to return
 // (modePrompt for the `note` command, modeList/modeDetail for the `n` shortcut).
+// Notes are multi-line (they render as markdown): enter breaks the line and
+// ctrl+d saves.
 func (m model) beginNote(id int64, title string, ret mode) model {
 	m.noteTarget = id
 	m.noteTitle = title
-	ni := textinput.New()
-	ni.Prompt = m.lang.T("note.promptGlyph")
-	ni.CharLimit = 500
-	ni.Cursor.SetMode(cursor.CursorStatic)
-	ni.Width = max(10, min(m.w, 60)-10)
-	ni.Focus()
-	m.noteInput = ni
+	ta := textarea.New()
+	ta.Prompt = "" // the box border already frames the text
+	ta.ShowLineNumbers = false
+	ta.CharLimit = 500
+	ta.SetWidth(max(10, min(m.w, 60)-6))
+	ta.SetHeight(4)
+	ta.Cursor.SetMode(cursor.CursorStatic)
+	// the default cursor-line background clashes with bg-painting themes
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	ta.Focus()
+	m.noteInput = ta
 	m.noteReturn = ret
 	m.mode = modeNote
 	return m
@@ -419,9 +429,14 @@ func (m model) View() string {
 	case modeDetail:
 		return m.viewDetail()
 	case modeNote:
+		taLines := strings.Split(m.noteInput.View(), "\n")
+		lines := make([]string, 0, len(taLines)+1)
+		for _, l := range taLines {
+			lines = append(lines, " "+l)
+		}
+		lines = append(lines, m.th.Dim.Render(m.lang.T("note.boxHint")))
 		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.lang.T("note.boxTitle")+ui.TruncRunes(m.noteTitle, 30),
-			[]string{" " + m.noteInput.View(), m.th.Dim.Render(m.lang.T("note.boxHint"))},
-			min(m.w, 60), 4, true)
+			lines, min(m.w, 60), len(lines)+2, true)
 		return box
 	case modeAddChild:
 		box := ui.DrawBoxChars(m.th, roundBox(m.ascii), m.lang.T("child.boxTitle")+ui.TruncRunes(m.addTitle, 30),

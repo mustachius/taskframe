@@ -18,7 +18,7 @@ var catalog = map[string][2]string{
 	"child.promptGlyph":  {"child› ", "filho› "},
 	"edit.promptGlyph":   {"edit› ", "editar› "},
 	"note.boxTitle":      {"note · ", "nota · "},
-	"note.boxHint":       {" enter saves · esc cancels", " enter salva · esc cancela"},
+	"note.boxHint":       {" ctrl+d saves · enter new line · esc cancels", " ctrl+d salva · enter nova linha · esc cancela"},
 	"child.boxTitle":     {"child of · ", "filho de · "},
 	"child.boxHint":      {" enter creates · esc cancels", " enter cria · esc cancela"},
 	"edit.boxTitle":      {"edit · ", "editar · "},
@@ -356,7 +356,7 @@ tokens (add e list):
 	"confirm.deleteMsg":   {"Delete task %d — %s?", "Deletar tarefa %d — %s?"},
 
 	// --- TUI note prompt ---
-	"notePrompt.footer": {"Enter saves · Esc cancels", "Enter salva · Esc cancela"},
+	"notePrompt.footer": {"Ctrl+D saves · Enter new line · Esc cancels", "Ctrl+D salva · Enter nova linha · Esc cancela"},
 	"notePrompt.title":  {"New note", "Nova nota"},
 
 	// --- TUI detail ---
