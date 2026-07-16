@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
@@ -667,7 +668,9 @@ func (a *App) View() string {
 	left := drawBox(a.th, a.lang.T("panel.projects"), sbLines, sidebarWidth, panelH, a.focus == focusSidebar)
 	right := drawBox(a.th, a.sidebar.Title(a.lang), listLines, listW, panelH, a.focus == focusList)
 
-	panels := joinHorizontal(left, right)
+	// both boxes span exactly panelH rows with width-padded lines, so the
+	// native join inserts no extra padding
+	panels := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 	return hdr + panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
 }
 
@@ -708,30 +711,10 @@ func (a *App) statusLine() string {
 		a.th.StatusAccent.Render(ctxSeg) + style.Render(restSeg)
 }
 
-// joinHorizontal glues two multi-line blocks side by side.
-func joinHorizontal(left, right string) string {
-	ll := strings.Split(left, "\n")
-	rl := strings.Split(right, "\n")
-	n := len(ll)
-	if len(rl) > n {
-		n = len(rl)
-	}
-	var b strings.Builder
-	for i := 0; i < n; i++ {
-		if i < len(ll) {
-			b.WriteString(ll[i])
-		}
-		if i < len(rl) {
-			b.WriteString(rl[i])
-		}
-		if i < n-1 {
-			b.WriteString("\n")
-		}
-	}
-	return b.String()
-}
-
-// lipglossPlace centers a modal over a solid blue backdrop.
+// lipglossPlace centers a modal over the theme backdrop. Deliberately NOT
+// lipgloss.Place: the v1 Place returns oversized content unchanged (no
+// clipping), and tall modals (help at small sizes, the note prompt) rely on
+// being clipped to panelH so the frame keeps its exact height.
 func lipglossPlace(th Theme, content string, w, h int) string {
 	lines := strings.Split(content, "\n")
 	ch := len(lines)
