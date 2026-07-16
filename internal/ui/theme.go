@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Four named themes; `dark` (the default) paints no backgrounds so the
+// Named themes; `dark` (the default) paints no backgrounds so the
 // terminal's own scheme shows through.
 
 type BoxChars struct {
@@ -23,9 +23,11 @@ var RoundBox = BoxChars{"╭", "╮", "╰", "╯", "─", "│"}
 var RoundAsciiBox = BoxChars{".", ".", "'", "'", "-", "|"}
 
 // palette is the raw color set of a theme. bg == "" means "do not paint
-// backgrounds" — panels inherit the terminal background.
+// backgrounds" — panels inherit the terminal background. box == zero value
+// means RoundBox; a theme may dissent (borland keeps its double borders).
 type palette struct {
 	bg          lipgloss.Color
+	box         BoxChars
 	border      lipgloss.Color
 	borderFocus lipgloss.Color
 	title       lipgloss.Color
@@ -38,10 +40,10 @@ type palette struct {
 	warn        lipgloss.Color // due-soon: below overdue in urgency, above plain text
 	prioHi      lipgloss.Color
 	accent      lipgloss.Color
-	fkeyNumFg   lipgloss.Color
-	fkeyNumBg   lipgloss.Color
-	fkeyLblFg   lipgloss.Color
-	fkeyLblBg   lipgloss.Color
+	chipFg      lipgloss.Color // primary status chip (task count, @context)
+	chipBg      lipgloss.Color
+	chipAltFg   lipgloss.Color // secondary status chip (lang, sort)
+	chipAltBg   lipgloss.Color
 	statusFg    lipgloss.Color
 	statusBg    lipgloss.Color
 	statusErr   lipgloss.Color
@@ -52,6 +54,7 @@ type palette struct {
 var ThemeNames = []string{
 	"dark", "borland", "green", "amber",
 	"dracula", "catppuccin", "nord", "gruvbox", "solarized", "tokyonight",
+	"charm",
 }
 
 // logoGradient holds the {from, to} hex endpoints used to color the startup
@@ -67,6 +70,7 @@ var logoGradient = map[string][2]string{
 	"gruvbox":    {"#fe8019", "#fabd2f"},
 	"solarized":  {"#268bd2", "#2aa198"},
 	"tokyonight": {"#7aa2f7", "#bb9af7"},
+	"charm":      {"#f25d94", "#7d56f4"},
 }
 
 var palettes = map[string]palette{
@@ -77,19 +81,21 @@ var palettes = map[string]palette{
 		cursorFg: "255", cursorBg: "237",
 		text: "252", dim: "243",
 		overdue: "167", warn: "215", prioHi: "179", accent: "173",
-		fkeyNumFg: "245", fkeyLblFg: "250", fkeyLblBg: "237",
+		chipFg: "250", chipBg: "237", chipAltFg: "245", chipAltBg: "236",
 		statusFg: "245", statusErr: "167",
 	},
-	// Turbo Vision spirit, desaturated truecolor navy — not the harsh ANSI 4
+	// Turbo Vision spirit, desaturated truecolor navy — not the harsh ANSI 4.
+	// Keeps the double borders on purpose: they are the theme's identity.
 	"borland": {
 		bg:     "#1a2340",
+		box:    doubleBox,
 		border: "#7fb2c8", borderFocus: "#e8f4f8",
 		title: "#7fb2c8", titleFocus: "#ffd75f",
 		cursorFg: "#10182c", cursorBg: "#7fb2c8",
 		text: "#d8e2ec", dim: "#5a708c",
 		overdue: "#ff8a80", warn: "#ffb86c", prioHi: "#ffd75f", accent: "#e8a87c",
-		fkeyNumFg: "#e8f4f8", fkeyNumBg: "#10182c",
-		fkeyLblFg: "#10182c", fkeyLblBg: "#7fb2c8",
+		chipFg: "#10182c", chipBg: "#7fb2c8",
+		chipAltFg: "#e8f4f8", chipAltBg: "#10182c",
 		statusFg: "#d8e2ec", statusBg: "#10182c", statusErr: "#ff8a80",
 	},
 	// green phosphor CRT
@@ -99,7 +105,7 @@ var palettes = map[string]palette{
 		cursorFg: "16", cursorBg: "34",
 		text: "40", dim: "22",
 		overdue: "118", warn: "154", prioHi: "46", accent: "40",
-		fkeyNumFg: "46", fkeyLblFg: "16", fkeyLblBg: "34",
+		chipFg: "16", chipBg: "34", chipAltFg: "46", chipAltBg: "22",
 		statusFg: "34", statusErr: "118",
 	},
 	// amber phosphor CRT
@@ -109,18 +115,18 @@ var palettes = map[string]palette{
 		cursorFg: "16", cursorBg: "172",
 		text: "214", dim: "94",
 		overdue: "220", warn: "208", prioHi: "220", accent: "214",
-		fkeyNumFg: "214", fkeyLblFg: "16", fkeyLblBg: "172",
+		chipFg: "16", chipBg: "172", chipAltFg: "214", chipAltBg: "94",
 		statusFg: "172", statusErr: "220",
 	},
 	// The themes below are truecolor and paint no line background (bg unset);
-	// only the cursor row and the f-key chips carry a subtle surface color.
+	// only the cursor row and the status chips carry a subtle surface color.
 	"dracula": {
 		border: "#44475a", borderFocus: "#6272a4",
 		title: "#bd93f9", titleFocus: "#ff79c6",
 		cursorFg: "#f8f8f2", cursorBg: "#44475a",
 		text: "#f8f8f2", dim: "#6272a4",
 		overdue: "#ff5555", warn: "#ffb86c", prioHi: "#f1fa8c", accent: "#bd93f9",
-		fkeyNumFg: "#f8f8f2", fkeyLblFg: "#f8f8f2", fkeyLblBg: "#44475a",
+		chipFg: "#f8f8f2", chipBg: "#44475a", chipAltFg: "#f8f8f2", chipAltBg: "#343746",
 		statusFg: "#6272a4", statusErr: "#ff5555",
 		mdStyle: "dracula",
 	},
@@ -130,7 +136,7 @@ var palettes = map[string]palette{
 		cursorFg: "#cdd6f4", cursorBg: "#313244",
 		text: "#cdd6f4", dim: "#6c7086",
 		overdue: "#f38ba8", warn: "#fab387", prioHi: "#f9e2af", accent: "#cba6f7",
-		fkeyNumFg: "#cdd6f4", fkeyLblFg: "#cdd6f4", fkeyLblBg: "#313244",
+		chipFg: "#cdd6f4", chipBg: "#313244", chipAltFg: "#cdd6f4", chipAltBg: "#181825",
 		statusFg: "#6c7086", statusErr: "#f38ba8",
 	},
 	"nord": {
@@ -139,7 +145,7 @@ var palettes = map[string]palette{
 		cursorFg: "#eceff4", cursorBg: "#3b4252",
 		text: "#d8dee9", dim: "#4c566a",
 		overdue: "#bf616a", warn: "#d08770", prioHi: "#ebcb8b", accent: "#88c0d0",
-		fkeyNumFg: "#eceff4", fkeyLblFg: "#eceff4", fkeyLblBg: "#3b4252",
+		chipFg: "#eceff4", chipBg: "#3b4252", chipAltFg: "#eceff4", chipAltBg: "#2e3440",
 		statusFg: "#4c566a", statusErr: "#bf616a",
 	},
 	"gruvbox": { // dark
@@ -148,7 +154,7 @@ var palettes = map[string]palette{
 		cursorFg: "#ebdbb2", cursorBg: "#3c3836",
 		text: "#ebdbb2", dim: "#928374",
 		overdue: "#fb4934", warn: "#d65d0e", prioHi: "#fabd2f", accent: "#fe8019",
-		fkeyNumFg: "#ebdbb2", fkeyLblFg: "#ebdbb2", fkeyLblBg: "#3c3836",
+		chipFg: "#ebdbb2", chipBg: "#3c3836", chipAltFg: "#ebdbb2", chipAltBg: "#282828",
 		statusFg: "#928374", statusErr: "#fb4934",
 	},
 	"solarized": { // dark
@@ -157,7 +163,7 @@ var palettes = map[string]palette{
 		cursorFg: "#eee8d5", cursorBg: "#073642",
 		text: "#93a1a1", dim: "#586e75",
 		overdue: "#dc322f", warn: "#cb4b16", prioHi: "#b58900", accent: "#268bd2",
-		fkeyNumFg: "#eee8d5", fkeyLblFg: "#eee8d5", fkeyLblBg: "#073642",
+		chipFg: "#eee8d5", chipBg: "#073642", chipAltFg: "#eee8d5", chipAltBg: "#002b36",
 		statusFg: "#586e75", statusErr: "#dc322f",
 	},
 	"tokyonight": {
@@ -166,9 +172,19 @@ var palettes = map[string]palette{
 		cursorFg: "#c0caf5", cursorBg: "#292e42",
 		text: "#c0caf5", dim: "#565f89",
 		overdue: "#f7768e", warn: "#ff9e64", prioHi: "#e0af68", accent: "#7aa2f7",
-		fkeyNumFg: "#c0caf5", fkeyLblFg: "#c0caf5", fkeyLblBg: "#292e42",
+		chipFg: "#c0caf5", chipBg: "#292e42", chipAltFg: "#c0caf5", chipAltBg: "#1f2335",
 		statusFg: "#565f89", statusErr: "#f7768e",
 		mdStyle: "tokyo-night",
+	},
+	// lipgloss-README pink/purple: the Charm aesthetic the classic UI mirrors
+	"charm": {
+		border: "#45415e", borderFocus: "#874bfd",
+		title: "#7d56f4", titleFocus: "#f25d94",
+		cursorFg: "#fafafa", cursorBg: "#f25d94",
+		text: "#ededf2", dim: "#75708f",
+		overdue: "#ff5f87", warn: "#ffa36c", prioHi: "#f1c069", accent: "#9d7cf7",
+		chipFg: "#fafafa", chipBg: "#7d56f4", chipAltFg: "#ededf2", chipAltBg: "#3b3554",
+		statusFg: "#75708f", statusErr: "#ff5f87",
 	},
 }
 
@@ -216,8 +232,8 @@ type Theme struct {
 	PrioHi  lipgloss.Style
 	Accent  lipgloss.Style
 
-	FKeyNum   lipgloss.Style
-	FKeyLabel lipgloss.Style
+	Chip      lipgloss.Style // primary status chip (task count, @context)
+	ChipAlt   lipgloss.Style // secondary status chip (lang, sort)
 	Status    lipgloss.Style
 	StatusErr lipgloss.Style
 	// StatusAccent is the accent over the status-bar background — Accent itself
@@ -229,9 +245,16 @@ func NewTheme(name string, ascii bool) Theme {
 	name = NormalizeTheme(name)
 	p := palettes[name]
 
-	box := doubleBox
+	box := p.box
+	if box == (BoxChars{}) {
+		box = RoundBox
+	}
 	if ascii {
-		box = asciiBox
+		if box == doubleBox {
+			box = asciiBox
+		} else {
+			box = RoundAsciiBox
+		}
 	}
 
 	base := lipgloss.NewStyle()
@@ -272,8 +295,8 @@ func NewTheme(name string, ascii bool) Theme {
 		Warn:         fg(p.warn),
 		PrioHi:       fg(p.prioHi).Bold(true),
 		Accent:       fg(p.accent),
-		FKeyNum:      withBg(lipgloss.NewStyle().Foreground(p.fkeyNumFg), p.fkeyNumBg),
-		FKeyLabel:    withBg(lipgloss.NewStyle().Foreground(p.fkeyLblFg), p.fkeyLblBg),
+		Chip:         withBg(lipgloss.NewStyle().Foreground(p.chipFg), p.chipBg),
+		ChipAlt:      withBg(lipgloss.NewStyle().Foreground(p.chipAltFg), p.chipAltBg),
 		Status:       withBg(lipgloss.NewStyle().Foreground(p.statusFg), p.statusBg),
 		StatusErr:    withBg(lipgloss.NewStyle().Foreground(p.statusErr), p.statusBg).Bold(true),
 		StatusAccent: withBg(lipgloss.NewStyle().Foreground(p.accent), p.statusBg),
@@ -297,8 +320,8 @@ func NewTheme(name string, ascii bool) Theme {
 	return th
 }
 
-// ASCII reports whether the theme uses the pure-ASCII box set (--ascii).
-func (t Theme) ASCII() bool { return t.Box == asciiBox }
+// ASCII reports whether the theme uses a pure-ASCII box set (--ascii).
+func (t Theme) ASCII() bool { return t.Box == asciiBox || t.Box == RoundAsciiBox }
 
 // VisibleWidth returns the rendered cell width of a (possibly styled) string.
 func VisibleWidth(s string) int { return lipgloss.Width(s) }

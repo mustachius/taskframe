@@ -40,7 +40,7 @@ func ProgressBar(frac float64, width int, th Theme) string {
 		return ""
 	}
 	full, empty := "█", "░"
-	if th.Box == asciiBox {
+	if th.ASCII() {
 		full, empty = "#", "-"
 	}
 	filled := progressFilled(frac, width)

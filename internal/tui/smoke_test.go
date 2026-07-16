@@ -134,7 +134,7 @@ func TestMainFrameLayout(t *testing.T) {
 
 	for _, want := range []string{
 		"████",                  // wordmark header (full variant at 100×30)
-		"╔", "╗", "╚", "╝", "║", // NC double borders
+		"╭", "╮", "╰", "╯", "│", // rounded borders (default themes)
 		"Projects", "(all)",
 		"casa", "mercado", "trabalho",
 		"Comprar leite", "Revisar relatório", "Escrever testes",
@@ -301,6 +301,51 @@ func TestThemeCycleAndPersist(t *testing.T) {
 		t.Fatalf("undo should target a task op, got %q (%v)", desc, err)
 	}
 	_ = m
+}
+
+func TestCharmTheme(t *testing.T) {
+	// 11th theme: in the cycle, pink→purple gradient, rounded borders
+	if got := NextTheme("tokyonight"); got != "charm" {
+		t.Fatalf("expected charm after tokyonight, got %s", got)
+	}
+	if got := NextTheme("charm"); got != "dark" {
+		t.Fatalf("cycle should wrap charm→dark, got %s", got)
+	}
+	th := NewTheme("charm", false)
+	if th.GradFrom != "#f25d94" || th.GradTo != "#7d56f4" {
+		t.Fatalf("charm gradient endpoints wrong: %s→%s", th.GradFrom, th.GradTo)
+	}
+	if th.Box.TL != "╭" || th.ASCII() {
+		t.Fatalf("charm should use rounded borders, got %q", th.Box.TL)
+	}
+	// borland is the deliberate double-border dissenter; both degrade in ascii
+	if b := NewTheme("borland", false); b.Box.TL != "╔" {
+		t.Fatalf("borland should keep double borders, got %q", b.Box.TL)
+	}
+	if b := NewTheme("borland", true); b.Box.TL != "+" || !b.ASCII() {
+		t.Fatalf("borland --ascii should use the plain box, got %q", b.Box.TL)
+	}
+	if c := NewTheme("charm", true); c.Box.TL != "." || !c.ASCII() {
+		t.Fatalf("charm --ascii should use the round-ascii box, got %q", c.Box.TL)
+	}
+
+	// render smoke: full charm frame keeps exact line widths
+	_, s := newTestApp(t)
+	ca := newApp(s, Options{ThemeName: "charm"})
+	ca.reduceMotion = true
+	var m tea.Model = ca
+	m = exec(t, m, ca.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+	frame := stripANSI(m.View())
+	lines := strings.Split(frame, "\n")
+	if len(lines) != 30 {
+		t.Fatalf("expected 30 lines, got %d", len(lines))
+	}
+	for i, ln := range lines {
+		if n := len([]rune(ln)); n != 100 {
+			t.Errorf("line %d has width %d, want 100: %q", i, n, ln)
+		}
+	}
 }
 
 func TestSortTogglePersists(t *testing.T) {
