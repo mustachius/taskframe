@@ -88,12 +88,13 @@ is on `↑` / `↓`, and `Tab` completes commands, projects, and tags.
 | `list [tokens]` | open the navigable list overlay |
 | `next` · `overdue` · `today` · `week` · `waiting` · `active` | named reports |
 | `done <ids>` · `del <ids>` | complete · delete (`1`, `1,5`, `1-3`) |
-| `note <id> [text]` | add a note (no text opens an input) |
+| `note <id> [text]` | add a note (no text opens a multi-line box: `Enter` breaks the line, `Ctrl+D` saves) |
 | `edit <id> <tokens>` | change fields (`+tag` adds, `-tag` removes) |
 | `move <id> pro:x sub:N` | change project / parent (`sub:0` = root) |
 | `start` / `stop <ids>` | mark in progress / idle |
 | `context [name\|none\|list\|define …]` | manage saved default filters |
 | `undo` · `redo` | reverse · reapply the last change |
+| `/sync [init <url>\|status\|pull\|push]` | git sync without leaving the REPL (spinner while it runs) |
 | `/theme [name]` · `/sort [mode]` · `/lang [en\|pt-br]` | preferences |
 | `/help` · `/clear` · `/quit` | help · clear · quit (`Ctrl+D`) |
 
@@ -131,6 +132,12 @@ a letter alias.
 | `o` · `t` · `L` | sort · theme · language |
 | `u` · `U` | undo · redo |
 | `F10` / `q` | quit |
+
+The mouse works too: the wheel scrolls the list, the sidebar and the
+detail/read views; a click selects the row under the pointer, and clicking the
+selected task again opens its detail. (While the TUI runs, select text with
+`Shift`+drag.) Started tasks show how long they have been in progress
+(`[>] … ·1h25m`) in every view.
 
 The sidebar shows projects (each with a done/total progress bar), virtual
 filters (**Today**, **Overdue**, **Week**, **Active**, **Next**, **Waiting**),
@@ -233,6 +240,9 @@ taskframe sync status   # clone, remote, and whether you're up to date
 taskframe sync pull     # or force a direction (last-writer-wins tie-breaker)
 taskframe sync push
 ```
+
+The same verbs work inside the REPL as `/sync` — the prompt stays responsive
+with a spinner while git talks to the remote.
 
 Sync is **last-writer-wins**: it does not merge concurrent edits (the data
 model has no global ids to reconcile), so it suits sequential use, like adding
