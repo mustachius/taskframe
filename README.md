@@ -27,7 +27,10 @@ SQLite backend (no CGo), so it runs cleanly on Windows.
   reversible.
 - **Soft delete, export/import** — deletes are recoverable until `purge`; full
   JSON backup and restore.
-- **Four themes** and an **English / Portuguese** interface, both switchable at
+- **Sync across machines** — `taskframe sync` moves your database between
+  machines through a private git repo (last-writer-wins, with an automatic
+  backup before every overwrite).
+- **Ten themes** and an **English / Portuguese** interface, both switchable at
   runtime and persisted.
 
 ## Installation
@@ -99,15 +102,17 @@ is on `↑` / `↓`, and `Tab` completes commands, projects, and tags.
 | `/theme [name]` · `/sort [mode]` · `/lang [en\|pt-br]` | preferences |
 | `/help` · `/clear` · `/quit` | help · clear · quit (`Ctrl+D`) |
 
-In the list overlay: `↑↓` / `jk` move, `←→` fold/expand, `a` adds a child under
-the cursor, `enter` opens the detail (notes + history), `d` completes, `x`
-deletes, `esc` closes.
+In the list overlay you act on the highlighted task **without typing its id**:
+`↑↓` / `jk` move, `←→` fold/expand, `a` adds a subtask, `n` adds a note, `e`
+edits it (same tokens as `add`), `enter` opens the detail (notes + history), `d`
+completes, `x` deletes, `esc` closes. The detail view also takes `n` and `e`.
 
 ### CLI
 
 Every REPL verb has a CLI counterpart: `add`, `list`, `done`, `del`, `note`,
 `move`, `context`, `start`, `stop`, `undo`, `redo`, `purge`, `export`, `import`,
-`lang`, plus the report names. Run `taskframe help` for the full reference.
+`sync`, `lang`, plus the report names. Run `taskframe help` for the full
+reference.
 
 ### Classic TUI (`taskframe classic`)
 
@@ -206,6 +211,34 @@ Every mutation is written to an `activity` table in the same transaction, so
 each task carries a complete, visible history that also powers `undo` and
 `redo`. The default sort is by **urgency**, a weighted score over due date,
 priority, the `+next` tag, age, active state, and pending subtasks.
+
+## Sync across machines
+
+Use the same tasks on several machines through a **private git repo** — no
+manual database copying. Set it up once per machine:
+
+```sh
+taskframe sync init https://github.com/you/taskframe-data.git
+```
+
+The machine that already has tasks publishes them; a fresh machine adopts them.
+After that, a single command reconciles local and remote:
+
+```sh
+taskframe sync          # picks the direction: pull when the remote is ahead,
+                        # push when you have local changes
+taskframe sync status   # clone, remote, and whether you're up to date
+taskframe sync pull     # or force a direction (last-writer-wins tie-breaker)
+taskframe sync push
+```
+
+Sync is **last-writer-wins** — it does not merge concurrent edits (the data
+model has no global ids to reconcile), so it suits sequential use (add at home,
+review at work). It never destroys silently: the local database is backed up
+before every overwrite, and a bare `sync` aborts if both sides changed since the
+last sync, asking you to `pull` or `push` explicitly. Authentication is your own
+git's (credential manager or SSH key) — TaskFrame stores no credentials.
+Requires `git` on `PATH`.
 
 ## Development
 
