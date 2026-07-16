@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
@@ -656,34 +655,42 @@ func (a *App) View() string {
 		return a.lang.T("app.windowSmall")
 	}
 
-	// the header and the tab band shrink the panel area; the frame always
+	// the header and the tab band shrink the content area; the frame always
 	// spans exactly a.h rows
 	header := a.renderHeader()
 	hdr := strings.Join(header, "\n") + "\n"
 	tabs := strings.Join(a.renderTabBand(), "\n") + "\n"
-	panelH := a.h - 2 - len(header) - tabsHeight
-	listW := a.w - sidebarWidth
+	contentH := a.contentHeight()
 
 	if a.modal != nil {
-		content := a.modal.View(a.th, a.w, panelH)
-		bg := lipglossPlace(a.th, content, a.w, panelH)
+		content := a.modal.View(a.th, a.w, contentH+1)
+		bg := lipglossPlace(a.th, content, a.w, contentH+1)
 		return hdr + tabs + bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
 	}
 
-	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, panelH-2, a.focus == focusSidebar)
-	listLines := a.list.Lines(a.th, a.lang, listW-2, panelH-2, a.focus == focusList)
+	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, contentH, a.focus == focusSidebar)
+	listLines := a.list.Lines(a.th, a.lang, a.w-27, contentH, a.focus == focusList)
 
-	left := drawBox(a.th, a.lang.T("panel.projects"), sbLines, sidebarWidth, panelH, a.focus == focusSidebar)
-	right := drawBox(a.th, a.listTitle(), listLines, listW, panelH, a.focus == focusList)
-
-	// both boxes span exactly panelH rows with width-padded lines, so the
-	// native join inserts no extra padding
-	panels := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
-	return hdr + tabs + panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
+	var b strings.Builder
+	b.WriteString(hdr)
+	b.WriteString(tabs)
+	b.WriteString(a.titleRow() + "\n")
+	for i := 0; i < contentH; i++ {
+		sb, li := "", ""
+		if i < len(sbLines) {
+			sb = sbLines[i]
+		}
+		if i < len(listLines) {
+			li = listLines[i]
+		}
+		b.WriteString(a.joinColumns(sb, li) + "\n")
+	}
+	b.WriteString(a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w))
+	return b.String()
 }
 
 // listTitle combines the active tab and the sidebar selection for the list
-// panel title: "Today", "Tasks: casa", or "Today · Tasks: casa".
+// column title: "Today", "Tasks: casa", or "Today · Tasks: casa".
 func (a *App) listTitle() string {
 	st := a.sidebar.Title(a.lang)
 	if a.activeTab == 0 {
@@ -694,6 +701,28 @@ func (a *App) listTitle() string {
 		return tl
 	}
 	return tl + " · " + st
+}
+
+// titleRow labels the two boxless columns; the focused column's label is the
+// only focus indicator left, so it renders TitleFocus (bold).
+func (a *App) titleRow() string {
+	sbStyle, listStyle := a.th.Title, a.th.Title
+	if a.focus == focusSidebar {
+		sbStyle = a.th.TitleFocus
+	} else {
+		listStyle = a.th.TitleFocus
+	}
+	left := sbStyle.Render(" " + truncRunes(a.lang.T("panel.projects"), sidebarWidth-3))
+	right := listStyle.Render(" " + truncRunes(a.listTitle(), a.w-28))
+	return a.joinColumns(left, right)
+}
+
+// joinColumns glues one sidebar row and one list row into a full-width frame
+// line: sidebar (24 cells) · pad · │ separator · pad · list (a.w-27 cells).
+func (a *App) joinColumns(sb, list string) string {
+	pad := a.th.Bg.Render(" ")
+	sep := a.th.Border.Render(a.th.Box.V)
+	return padRow(sb, sidebarWidth-2, a.th.Bg) + pad + sep + pad + padRow(list, a.w-27, a.th.Bg)
 }
 
 func (a *App) statusLine() string {
