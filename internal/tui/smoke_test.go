@@ -483,8 +483,8 @@ func TestStartStopToggle(t *testing.T) {
 		t.Fatal("S should start the cursor task")
 	}
 	frame := stripANSI(m.View())
-	if !strings.Contains(frame, "[>]") {
-		t.Error("active task should render the [>] marker")
+	if !strings.Contains(frame, "●") {
+		t.Error("active task should render the ● marker")
 	}
 	if !strings.Contains(frame, "·<1m") {
 		t.Error("active task should show the elapsed time")
@@ -528,6 +528,42 @@ func TestNextReportLimit(t *testing.T) {
 		t.Fatalf("cap should be lifted off the Next view, got %d rows", got)
 	}
 	_ = m
+}
+
+func TestChecklistMarks(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "○") {
+		t.Error("pending rows should carry the ○ checklist mark")
+	}
+	m = drive(t, m, key("d")) // complete the cursor task, then check the archive
+	m = driveSidebarTo(t, m, a, "Completed")
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "✓") {
+		t.Errorf("done rows should carry the ✓ mark, frame:\n%s", frame)
+	}
+
+	// ascii mode over the same store: o pending, * active, no unicode marks
+	b := newApp(a.store, Options{ASCII: true})
+	b.reduceMotion = true
+	var mb tea.Model = b
+	mb = exec(t, mb, b.Init())
+	mb = drive(t, mb, tea.WindowSizeMsg{Width: 100, Height: 40})
+	mb = drive(t, mb, key("S")) // start the cursor task
+	fb := stripANSI(mb.View())
+	if !strings.Contains(fb, " o ") {
+		t.Error("ascii pending mark should be o")
+	}
+	if !strings.Contains(fb, "*") {
+		t.Error("ascii active mark should be *")
+	}
+	if strings.ContainsAny(fb, "○✓×●▾▸") {
+		t.Errorf("ascii frame must not contain unicode marks, frame:\n%s", fb)
+	}
 }
 
 func TestProjectProgressBar(t *testing.T) {

@@ -170,23 +170,20 @@ func (l *TaskList) Lines(th Theme, lang i18n.Lang, w, h int, focused bool) []str
 func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor bool) string {
 	t := r.t
 
-	mark := "[ ]"
-	switch t.Status {
-	case task.StatusDone:
-		mark = "[x]"
-	case task.StatusDeleted:
-		mark = "[-]"
-	}
-	if t.Status == task.StatusPending && t.IsActive() {
-		mark = "[>]"
-	}
+	mark := statusMark(t, th.ASCII())
 
 	arrow := " "
 	if r.hasKids {
 		if l.isExpanded(t.ID) {
 			arrow = "▾"
+			if th.ASCII() {
+				arrow = "v"
+			}
 		} else {
 			arrow = "▸"
+			if th.ASCII() {
+				arrow = ">"
+			}
 		}
 	}
 
@@ -272,6 +269,34 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 		segs = append(segs, seg{elapsed, th.Accent})
 	}
 	return renderSegs(segs, w)
+}
+
+// statusMark is the 1-cell checklist glyph for a task's state: ○ pending,
+// ✓ done, × deleted, ● active (started). ASCII falls back to o/x/-/*
+// (* so the active mark cannot collide with the > fold arrow).
+func statusMark(t *task.Task, ascii bool) string {
+	switch {
+	case t.Status == task.StatusDone:
+		if ascii {
+			return "x"
+		}
+		return "✓"
+	case t.Status == task.StatusDeleted:
+		if ascii {
+			return "-"
+		}
+		return "×"
+	case t.IsActive():
+		if ascii {
+			return "*"
+		}
+		return "●"
+	default:
+		if ascii {
+			return "o"
+		}
+		return "○"
+	}
 }
 
 // seg is one independently styled slice of a rendered row.
