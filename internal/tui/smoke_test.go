@@ -135,6 +135,7 @@ func TestMainFrameLayout(t *testing.T) {
 	for _, want := range []string{
 		"████",                  // wordmark header (full variant at 100×30)
 		"╭", "╮", "╰", "╯", "│", // rounded borders (default themes)
+		"All", "Today", "Waiting", // tab band
 		"Projects", "(all)",
 		"casa", "mercado", "trabalho",
 		"Comprar leite", "Revisar relatório", "Escrever testes",
@@ -384,7 +385,7 @@ func driveSidebarTo(t *testing.T, m tea.Model, a *App, title string) tea.Model {
 	return m
 }
 
-func TestVirtualFilters(t *testing.T) {
+func TestTabsSwitchAndFilter(t *testing.T) {
 	a, s := newTestApp(t)
 	overdue := time.Now().Add(-24 * time.Hour)
 	wait := time.Now().Add(5 * 24 * time.Hour)
@@ -400,21 +401,35 @@ func TestVirtualFilters(t *testing.T) {
 		t.Error("waiting task should be hidden in default view")
 	}
 
-	m = driveSidebarTo(t, m, a, "Overdue")
+	m = drive(t, m, key("3")) // Overdue tab
+	if a.activeTab != 2 {
+		t.Fatalf("key 3 should activate the overdue tab, got %d", a.activeTab)
+	}
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "conta atrasada") {
-		t.Errorf("overdue filter should show the overdue task, frame:\n%s", frame)
+		t.Errorf("overdue tab should show the overdue task, frame:\n%s", frame)
 	}
 	if strings.Contains(frame, "Comprar leite") {
-		t.Error("overdue filter should not show a task due in 2 days")
+		t.Error("overdue tab should not show a task due in 2 days")
 	}
 
-	m = driveSidebarTo(t, m, a, "Waiting")
+	m = drive(t, m, key("]")) // Overdue → Week
+	if a.activeTab != 3 {
+		t.Fatalf("] should advance to the week tab, got %d", a.activeTab)
+	}
+	m = drive(t, m, key("[")) // back to Overdue
+	if a.activeTab != 2 {
+		t.Fatalf("[ should go back to the overdue tab, got %d", a.activeTab)
+	}
+
+	m = drive(t, m, key("7")) // Waiting tab
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "viagem futura") {
-		t.Errorf("waiting filter should show the waiting task, frame:\n%s", frame)
+		t.Errorf("waiting tab should show the waiting task, frame:\n%s", frame)
 	}
 
+	// tab ⊕ sidebar compose: the tag narrows within the All tab
+	m = drive(t, m, key("1"))
 	m = driveSidebarTo(t, m, a, "Tasks: +urgente")
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "Comprar leite") {
@@ -478,15 +493,15 @@ func TestStartStopToggle(t *testing.T) {
 		t.Error("expected start status message")
 	}
 
-	// the Active virtual filter shows only the started task
-	m = driveSidebarTo(t, m, a, "Active")
+	// the Active tab shows only the started task
+	m = drive(t, m, key("5"))
 	frame = stripANSI(m.View())
 	if !strings.Contains(frame, "Comprar leite") || strings.Contains(frame, "Regar plantas") {
-		t.Errorf("Active filter should show only the started task, frame:\n%s", frame)
+		t.Errorf("Active tab should show only the started task, frame:\n%s", frame)
 	}
 
-	// back to the list, S again stops it
-	m = drive(t, m, key("tab"))
+	// back to All, S again stops it
+	m = drive(t, m, key("1"))
 	m = drive(t, m, key("S"))
 	got, _ = s.GetTask(id)
 	if got.Start != nil {
@@ -503,17 +518,12 @@ func TestNextReportLimit(t *testing.T) {
 	m = exec(t, m, a.Init())
 	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 60})
 
-	m = driveSidebarTo(t, m, a, "Next")
+	m = drive(t, m, key("6")) // Next tab
 	if got := len(a.list.rows); got != 15 {
 		t.Fatalf("Next view should cap at 15 rows, got %d", got)
 	}
-	// leaving the report lifts the cap (k moves back up to the (all) row)
-	for i := 0; i < 30 && a.sidebar.Title(a.lang) != "Tasks"; i++ {
-		m = drive(t, m, key("k"))
-	}
-	if a.sidebar.Title(a.lang) != "Tasks" {
-		t.Fatal("could not reach the (all) row")
-	}
+	// leaving the report lifts the cap
+	m = drive(t, m, key("1"))
 	if got := len(a.list.rows); got <= 15 {
 		t.Fatalf("cap should be lifted off the Next view, got %d rows", got)
 	}
@@ -699,7 +709,8 @@ func TestDetailAndHelp(t *testing.T) {
 
 	var m tea.Model = a
 	m = exec(t, m, a.Init())
-	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+	// tall enough that the History section fits under the header + tab band
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 36})
 
 	m = drive(t, m, key("enter")) // detail of cursor task
 	frame := stripANSI(m.View())
@@ -823,15 +834,16 @@ func TestMouseClickSelectsAndOpens(t *testing.T) {
 	m = exec(t, m, a.Init())
 	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	// header = 6 rows at 100x30, +1 top border → first list row at Y=7
-	m = drive(t, m, click(60, 8)) // second row
+	// contentTop() = header + tab band + top border; second row is +1
+	y := a.contentTop() + 1
+	m = drive(t, m, click(60, y))
 	if a.list.cursor != 1 || a.focus != focusList {
 		t.Fatalf("click should select row 1 and focus the list, cursor=%d", a.list.cursor)
 	}
 	if a.modal != nil {
 		t.Fatal("first click must not open the detail")
 	}
-	m = drive(t, m, click(60, 8)) // same row again → detail
+	m = drive(t, m, click(60, y)) // same row again → detail
 	if _, ok := a.modal.(*Detail); !ok {
 		t.Fatalf("clicking the selected row should open the detail, got %T", a.modal)
 	}
@@ -853,8 +865,8 @@ func TestMouseClickSidebar(t *testing.T) {
 	m = exec(t, m, a.Init())
 	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	// sidebar row 1 = project "casa" (row 0 is "(all)"); first row at Y=7
-	m = drive(t, m, click(5, 8))
+	// sidebar row 1 = project "casa" (row 0 is "(all)")
+	m = drive(t, m, click(5, a.contentTop()+1))
 	if a.focus != focusSidebar {
 		t.Fatal("sidebar click should focus the sidebar")
 	}
@@ -876,10 +888,61 @@ func TestMouseClickSidebar(t *testing.T) {
 		}
 	}
 	if sepRow >= 0 {
-		m = drive(t, m, click(5, 7+sepRow))
+		m = drive(t, m, click(5, a.contentTop()+sepRow))
 		if a.sidebar.cursor != before {
 			t.Error("clicking a separator must not move the sidebar cursor")
 		}
+	}
+	_ = m
+}
+
+func TestTabsClickMouse(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	spans, _, _ := tabLayout(tabLabels(a.lang), a.activeTab, a.w)
+	target := spans[2]                                      // Overdue
+	m = drive(t, m, click(target.x0+1, a.headerHeight()+1)) // label row
+	if a.activeTab != 2 {
+		t.Fatalf("clicking the overdue tab should activate it, got %d", a.activeTab)
+	}
+	// a click on the empty band area is a no-op
+	m = drive(t, m, click(a.w-2, a.headerHeight()+1))
+	if a.activeTab != 2 {
+		t.Error("clicking the empty band area must not change the tab")
+	}
+	_ = m
+}
+
+func TestTabsOverflowNarrow(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 60, Height: 20})
+
+	frame := stripANSI(m.View())
+	for i, ln := range strings.Split(frame, "\n") {
+		if n := len([]rune(ln)); n != 60 {
+			t.Errorf("line %d has width %d, want 60: %q", i, n, ln)
+		}
+	}
+	if !strings.Contains(frame, "›") {
+		t.Error("clipped tab band should show the › marker")
+	}
+	if strings.Contains(frame, "Waiting") {
+		t.Error("the waiting tab should be clipped at 60 cols")
+	}
+
+	// jumping to the last tab slides the window: ‹ appears, Waiting shows
+	m = drive(t, m, key("7"))
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "‹") {
+		t.Error("window anchored at the right should show the ‹ marker")
+	}
+	if !strings.Contains(frame, "Waiting") {
+		t.Error("the active waiting tab must be visible")
 	}
 	_ = m
 }
