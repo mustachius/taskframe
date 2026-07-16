@@ -60,6 +60,8 @@ func key(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyTab}
 	case "esc":
 		return tea.KeyMsg{Type: tea.KeyEsc}
+	case "ctrl+d":
+		return tea.KeyMsg{Type: tea.KeyCtrlD}
 	case "up":
 		return tea.KeyMsg{Type: tea.KeyUp}
 	case "down":
@@ -310,7 +312,7 @@ func TestNoteInlinePrompt(t *testing.T) {
 		t.Fatalf("expected modeNote, got %d", m.(model).mode)
 	}
 	m = typeText(t, m, "lembrete importante")
-	m = drive(t, m, key("enter"))
+	m = drive(t, m, key("ctrl+d"))
 	notes, _ := s.Notes(2)
 	if len(notes) != 1 || notes[0].Body != "lembrete importante" {
 		t.Fatalf("note not saved: %+v", notes)
@@ -370,7 +372,7 @@ func TestNoteFromList(t *testing.T) {
 			mm.mode, mm.noteReturn, mm.noteTarget)
 	}
 	m = typeText(t, m, "nota do pai")
-	m = drive(t, m, key("enter"))
+	m = drive(t, m, key("ctrl+d"))
 	if m.(model).mode != modeList {
 		t.Fatalf("should return to list after saving, mode=%d", m.(model).mode)
 	}
@@ -397,7 +399,7 @@ func TestNoteFromList(t *testing.T) {
 		t.Fatalf("note target should be subtask %d, got %d", childID, mm.noteTarget)
 	}
 	m = typeText(t, m, "nota da subtarefa")
-	m = drive(t, m, key("enter"))
+	m = drive(t, m, key("ctrl+d"))
 	if notes, _ := s.Notes(childID); len(notes) != 1 || notes[0].Body != "nota da subtarefa" {
 		t.Fatalf("subtask note not saved: %+v", notes)
 	}
@@ -429,7 +431,7 @@ func TestNoteFromListPersistsFileDB(t *testing.T) {
 		t.Fatalf("n did not open the note box, mode=%d", m.(model).mode)
 	}
 	m = typeText(t, m, "salvar isso")
-	m = drive(t, m, key("enter"))
+	m = drive(t, m, key("ctrl+d"))
 
 	notes, _ := s.Notes(id)
 	if len(notes) != 1 || notes[0].Body != "salvar isso" {
@@ -463,7 +465,7 @@ func TestNoteFromDetail(t *testing.T) {
 		t.Fatalf("n in detail should open a detail-return note: mode=%d ret=%d", mm.mode, mm.noteReturn)
 	}
 	m = typeText(t, m, "anotado no detalhe")
-	m = drive(t, m, key("enter"))
+	m = drive(t, m, key("ctrl+d"))
 
 	mm := m.(model)
 	if mm.mode != modeDetail {
@@ -889,5 +891,42 @@ func TestElapsedShownOnActive(t *testing.T) {
 	joined := stripANSI(strings.Join(mm.detailLines, "\n"))
 	if !strings.Contains(joined, "· <1m") {
 		t.Errorf("detail Started row should show elapsed time, got:\n%s", joined)
+	}
+}
+
+// TestNoteMultilineBody verifies enter breaks the line inside the note box and
+// ctrl+d saves the multi-line body, which then renders in the detail.
+func TestNoteMultilineBody(t *testing.T) {
+	tm, s := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "note 2")
+	m = typeText(t, m, "linha um")
+	m = drive(t, m, key("enter")) // newline, not save
+	if m.(model).mode != modeNote {
+		t.Fatal("enter must insert a newline, not close the note box")
+	}
+	m = typeText(t, m, "linha dois")
+	m = drive(t, m, key("ctrl+d"))
+
+	notes, _ := s.Notes(2)
+	if len(notes) != 1 || notes[0].Body != "linha um\nlinha dois" {
+		t.Fatalf("multi-line body not saved: %+v", notes)
+	}
+
+	// both lines visible in the detail (markdown render)
+	m = run(t, m, "list")
+	for i := 0; i < 5; i++ {
+		if ct := m.(model).cursorTask(); ct != nil && ct.ID == 2 {
+			break
+		}
+		m = drive(t, m, key("down"))
+	}
+	m = drive(t, m, key("enter"))
+	full := stripANSI(strings.Join(m.(model).detailLines, "\n"))
+	if !strings.Contains(full, "linha um") || !strings.Contains(full, "linha dois") {
+		t.Fatalf("multi-line note not visible in detail:\n%s", full)
 	}
 }

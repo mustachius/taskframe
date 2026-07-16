@@ -4,27 +4,33 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/cursor"
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mustachius/taskframe/internal/i18n"
 )
 
-// NotePrompt is a one-line input for adding a note to a task.
+// NotePrompt is a multi-line input for adding a note to a task: enter breaks
+// the line (notes render as markdown), ctrl+d saves.
 type NotePrompt struct {
 	lang      i18n.Lang
 	taskID    int64
 	taskTitle string
-	input     textinput.Model
+	input     textarea.Model
 }
 
 func NewNotePrompt(lang i18n.Lang, taskID int64, taskTitle string) *NotePrompt {
-	ti := textinput.New()
-	ti.Prompt = ""
-	ti.CharLimit = 500
-	ti.Width = 50
-	ti.Cursor.SetMode(cursor.CursorStatic)
-	ti.Focus()
-	return &NotePrompt{lang: lang, taskID: taskID, taskTitle: taskTitle, input: ti}
+	ta := textarea.New()
+	ta.Prompt = "" // the box border already frames the text
+	ta.ShowLineNumbers = false
+	ta.CharLimit = 500
+	ta.SetWidth(50)
+	ta.SetHeight(4)
+	ta.Cursor.SetMode(cursor.CursorStatic)
+	// the default cursor-line background clashes with bg-painting themes
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	ta.Focus()
+	return &NotePrompt{lang: lang, taskID: taskID, taskTitle: taskTitle, input: ta}
 }
 
 func (n *NotePrompt) Update(msg tea.Msg) (Modal, tea.Cmd) {
@@ -35,7 +41,9 @@ func (n *NotePrompt) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	switch keyMsg.String() {
 	case "esc":
 		return n, func() tea.Msg { return modalCancelMsg{} }
-	case "enter":
+	// ctrl+d saves. It MUST be intercepted here, before input.Update —
+	// textarea's default keymap binds ctrl+d to delete-character-forward.
+	case "ctrl+d":
 		body := strings.TrimSpace(n.input.Value())
 		if body == "" {
 			return n, func() tea.Msg { return modalCancelMsg{} }
@@ -52,10 +60,14 @@ func (n *NotePrompt) View(th Theme, w, h int) string {
 	lines := []string{
 		"",
 		" " + th.Dim.Render(truncRunes(n.taskTitle, 50)),
-		" " + th.Text.Render(n.input.View()),
-		"",
-		" " + th.Dim.Render(n.lang.T("notePrompt.footer")),
 	}
+	for _, l := range strings.Split(n.input.View(), "\n") {
+		lines = append(lines, " "+l)
+	}
+	lines = append(lines,
+		"",
+		" "+th.Dim.Render(n.lang.T("notePrompt.footer")),
+	)
 	bw := 58
 	if bw > w-4 {
 		bw = w - 4
