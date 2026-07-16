@@ -133,8 +133,8 @@ func TestMainFrameLayout(t *testing.T) {
 	frame := stripANSI(m.View())
 
 	for _, want := range []string{
-		"████",                  // wordmark header (full variant at 100×30)
-		"╭", "╮", "╰", "╯", "│", // rounded borders (default themes)
+		"████",        // wordmark header (full variant at 100×30)
+		"╭", "╮", "│", // rounded tab band + column separator
 		"All", "Today", "Waiting", // tab band
 		"Projects", "(all)",
 		"casa", "mercado", "trabalho",

@@ -21,11 +21,17 @@ func (a *App) headerHeight() int {
 	return 1
 }
 
-// contentTop is the Y of the first panel content row: header + tab band +
-// panel top border. Render, hit-testing and the tests all go through it so
-// the geometry can never drift apart.
+// contentTop is the Y of the first content row: header + tab band + title
+// row. Render, hit-testing and the tests all go through it (and
+// contentHeight) so the geometry can never drift apart.
 func (a *App) contentTop() int {
 	return a.headerHeight() + tabsHeight + 1
+}
+
+// contentHeight is how many column content rows the frame holds: everything
+// minus header, tab band, title row, status bar and fkey bar.
+func (a *App) contentHeight() int {
+	return a.h - a.headerHeight() - tabsHeight - 3
 }
 
 // modalScroller is implemented by modals that can wheel-scroll (Detail, Read).
@@ -84,10 +90,9 @@ func (a *App) handleMouse(m tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	panelH := a.h - 2 - hdr - tabsHeight // same formula as View()
-	row := m.Y - a.contentTop()          // content row inside the panel
-	if row < 0 || row > panelH-3 {
-		return a, nil // header, tabs, borders, status or fkey bar
+	row := m.Y - a.contentTop() // content row inside the columns
+	if row < 0 || row >= a.contentHeight() {
+		return a, nil // header, tabs, title, status or fkey bar
 	}
 
 	if m.X < sidebarWidth {
