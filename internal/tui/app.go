@@ -66,7 +66,10 @@ type App struct {
 
 func Run(s *store.Store, opts Options) error {
 	app := newApp(s, opts)
-	p := tea.NewProgram(app, tea.WithAltScreen())
+	// cell-motion mouse: click selects, wheel scrolls. It disables the
+	// terminal's native text selection while the TUI runs (Shift+drag still
+	// selects in Windows Terminal) — standard trade-off for full-screen TUIs.
+	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
 }
@@ -243,6 +246,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.w, a.h = msg.Width, msg.Height
 		return a, nil
+
+	case tea.MouseMsg:
+		return a.handleMouse(msg)
 
 	case errMsg:
 		a.status, a.statusErr = msg.err.Error(), true

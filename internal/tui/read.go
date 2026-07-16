@@ -51,6 +51,9 @@ func (r *Read) markdown() string {
 	return b.String()
 }
 
+// scrollBy lets the mouse wheel scroll the reader (see handleMouse).
+func (r *Read) scrollBy(delta int) tea.Cmd { return r.sc.scrollBy(delta) }
+
 func (r *Read) View(th Theme, w, h int) string {
 	bw := w - 8
 	if bw > 84 {

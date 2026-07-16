@@ -58,6 +58,27 @@ func (s *scroller) onKey(msg tea.KeyMsg) tea.Cmd {
 	return frameTick()
 }
 
+// scrollBy scrolls by delta lines through the same spring as onKey (used by
+// the mouse wheel; a synthetic KeyMsg would move one line per event and couple
+// wheel semantics to the viewport keymap).
+func (s *scroller) scrollBy(delta int) tea.Cmd {
+	if s.reduce {
+		s.vp.SetYOffset(s.vp.YOffset + delta) // SetYOffset clamps
+		s.pos, s.target = float64(s.vp.YOffset), float64(s.vp.YOffset)
+		return nil
+	}
+	before := s.vp.YOffset
+	s.vp.SetYOffset(before + delta) // let the viewport clamp the target
+	s.target = float64(s.vp.YOffset)
+	s.vp.SetYOffset(before) // hold the display; the spring will move it
+	s.pos = float64(before)
+	if s.target == s.pos || s.animating {
+		return nil
+	}
+	s.animating = true
+	return frameTick()
+}
+
 // onFrame advances the spring one step and returns the next tick until settled.
 func (s *scroller) onFrame() tea.Cmd {
 	s.pos, s.vel = s.spring.Update(s.pos, s.vel, s.target)

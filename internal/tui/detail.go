@@ -39,6 +39,9 @@ func (d *Detail) Update(msg tea.Msg) (Modal, tea.Cmd) {
 	return d, nil
 }
 
+// scrollBy lets the mouse wheel scroll the detail (see handleMouse).
+func (d *Detail) scrollBy(delta int) tea.Cmd { return d.sc.scrollBy(delta) }
+
 func (d *Detail) View(th Theme, w, h int) string {
 	t := d.t
 	label := func(s string) string { return th.Dim.Render(padRowPlain(s, 16)) }
