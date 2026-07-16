@@ -541,3 +541,37 @@ func TestRedoInvalidatedByNewOp(t *testing.T) {
 		t.Fatal("a new op should invalidate the redo")
 	}
 }
+
+func TestProjectStatusCounts(t *testing.T) {
+	s := openTest(t)
+	for _, tk := range []*task.Task{
+		{Title: "a", Project: "casa"},
+		{Title: "b", Project: "casa"},
+		{Title: "c", Project: "trabalho"},
+		{Title: "d", Project: "trabalho"},
+	} {
+		if err := s.AddTask(tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tasks, _ := s.List(task.Filter{Project: "casa"})
+	if _, err := s.CompleteTask(tasks[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	tasks, _ = s.List(task.Filter{Project: "trabalho"})
+	if err := s.DeleteTask(tasks[0].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	counts, err := s.ProjectStatusCounts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := counts["casa"]; c.Pending != 1 || c.Done != 1 {
+		t.Fatalf("casa: expected 1 pending / 1 done, got %+v", c)
+	}
+	// deleted tasks are excluded entirely
+	if c := counts["trabalho"]; c.Pending != 1 || c.Done != 0 {
+		t.Fatalf("trabalho: expected 1 pending / 0 done, got %+v", c)
+	}
+}

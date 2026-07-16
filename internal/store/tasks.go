@@ -524,6 +524,39 @@ func (s *Store) ProjectCounts() (map[string]int, error) {
 	return m, rows.Err()
 }
 
+// ProjectCount pairs pending and done totals for one exact project string.
+type ProjectCount struct {
+	Pending int
+	Done    int
+}
+
+// ProjectStatusCounts returns pending/done counts per exact project string
+// (deleted tasks excluded). Feeds the sidebar's per-project progress bar.
+func (s *Store) ProjectStatusCounts() (map[string]ProjectCount, error) {
+	rows, err := s.db.Query(`SELECT project, status, COUNT(*) FROM tasks
+		WHERE status IN ('pending','done') GROUP BY project, status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	m := map[string]ProjectCount{}
+	for rows.Next() {
+		var p, st string
+		var n int
+		if err := rows.Scan(&p, &st, &n); err != nil {
+			return nil, err
+		}
+		c := m[p]
+		if st == string(task.StatusDone) {
+			c.Done = n
+		} else {
+			c.Pending = n
+		}
+		m[p] = c
+	}
+	return m, rows.Err()
+}
+
 // AllTags returns distinct tags on pending tasks with counts.
 func (s *Store) AllTags() (map[string]int, error) {
 	rows, err := s.db.Query(`SELECT g.tag, COUNT(*) FROM tags g

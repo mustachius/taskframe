@@ -1,6 +1,9 @@
 package tui
 
-import "github.com/mustachius/taskframe/internal/task"
+import (
+	"github.com/mustachius/taskframe/internal/store"
+	"github.com/mustachius/taskframe/internal/task"
+)
 
 type tasksLoadedMsg struct{ tasks []*task.Task }
 
@@ -12,8 +15,8 @@ type ctxEntry struct {
 
 // sidebarData carries everything the sidebar needs in one message.
 type sidebarData struct {
-	counts    map[string]int // pending per exact project string
-	tags      map[string]int // pending per tag
+	counts    map[string]store.ProjectCount // pending/done per exact project string
+	tags      map[string]int                // pending per tag
 	total     int
 	today     int
 	overdue   int

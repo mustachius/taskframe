@@ -297,6 +297,9 @@ func NewTheme(name string, ascii bool) Theme {
 	return th
 }
 
+// ASCII reports whether the theme uses the pure-ASCII box set (--ascii).
+func (t Theme) ASCII() bool { return t.Box == asciiBox }
+
 // VisibleWidth returns the rendered cell width of a (possibly styled) string.
 func VisibleWidth(s string) int { return lipgloss.Width(s) }
 

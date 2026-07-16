@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/mustachius/taskframe/internal/i18n"
+	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 type sbKind int
@@ -36,6 +38,7 @@ type sbItem struct {
 	value  string // dotted project path (sbProject), tag (sbTag) or context name
 	depth  int
 	count  int
+	done   int  // sbProject: completed tasks (feeds the progress bar)
 	active bool // sbContext: this is the active context
 }
 
@@ -53,15 +56,18 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 	s.items = append(s.items, sbItem{kind: sbAll, label: lang.T("sb.all"), count: d.total})
 
 	// every node in the dotted hierarchy, with counts aggregated upward
-	nodes := map[string]int{}
-	for p, n := range d.counts {
+	nodes := map[string]store.ProjectCount{}
+	for p, c := range d.counts {
 		if p == "" {
 			continue
 		}
 		parts := task.ProjectParts(p)
 		for i := range parts {
 			prefix := strings.Join(parts[:i+1], ".")
-			nodes[prefix] += n
+			n := nodes[prefix]
+			n.Pending += c.Pending
+			n.Done += c.Done
+			nodes[prefix] = n
 		}
 	}
 	paths := make([]string, 0, len(nodes))
@@ -73,7 +79,7 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 		parts := task.ProjectParts(p)
 		s.items = append(s.items, sbItem{
 			kind: sbProject, label: parts[len(parts)-1], value: p,
-			depth: len(parts) - 1, count: nodes[p],
+			depth: len(parts) - 1, count: nodes[p].Pending, done: nodes[p].Done,
 		})
 	}
 
@@ -275,13 +281,27 @@ func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 		if it.kind == sbContext && it.active {
 			name = "● " + name
 		}
-		label := truncRunes(indent+name, w-len(count)-2)
+		// project rows carry a done/total progress bar when the width allows
+		// (the label must keep a readable minimum after making room for it)
+		barW := 0
+		frac := 0.0
+		if tot := it.count + it.done; it.kind == sbProject && tot > 0 && w-len(count)-9 >= 8 {
+			barW = 6
+			frac = float64(it.done) / float64(tot)
+		}
+		labelMax := w - len(count) - 2
+		if barW > 0 {
+			labelMax -= barW + 1
+		}
+		label := truncRunes(indent+name, labelMax)
 		gap := w - len([]rune(label)) - len(count) - 1
+		if barW > 0 {
+			gap -= barW + 1
+		}
 		if gap < 1 {
 			gap = 1
 		}
 		row := " " + label + strings.Repeat(" ", gap-1) + count + " "
-		row = truncRunes(row, w)
 		style := th.Text
 		switch it.kind {
 		case sbDone, sbDeleted:
@@ -300,7 +320,17 @@ func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 		} else if i == s.cursor {
 			style = th.Accent
 		}
-		lines = append(lines, style.Render(row))
+		if barW == 0 {
+			lines = append(lines, style.Render(truncRunes(row, w)))
+			continue
+		}
+		if i == s.cursor && focused {
+			// cursor row: plain glyphs inside the single whole-row style —
+			// nesting styled segments would break the highlight mid-row
+			lines = append(lines, style.Render(row+ui.ProgressGlyphs(frac, barW, th.ASCII())+" "))
+			continue
+		}
+		lines = append(lines, style.Render(row)+ui.ProgressBar(frac, barW, th)+style.Render(" "))
 	}
 	return lines
 }
