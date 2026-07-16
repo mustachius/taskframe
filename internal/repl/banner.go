@@ -7,49 +7,13 @@ import (
 	"github.com/mustachius/taskframe/internal/ui"
 )
 
-// wordmarkShadow is the "TASKFRAME" logo in the ANSI Shadow figlet style
-// (solid Unicode block/box glyphs). Used by default on Unicode-capable terminals.
-var wordmarkShadow = []string{
-	`████████╗ █████╗ ███████╗██╗  ██╗███████╗██████╗  █████╗ ███╗   ███╗███████╗`,
-	`╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗██╔══██╗████╗ ████║██╔════╝`,
-	`   ██║   ███████║███████╗█████╔╝ █████╗  ██████╔╝███████║██╔████╔██║█████╗  `,
-	`   ██║   ██╔══██║╚════██║██╔═██╗ ██╔══╝  ██╔══██╗██╔══██║██║╚██╔╝██║██╔══╝  `,
-	`   ██║   ██║  ██║███████║██║  ██╗██║     ██║  ██║██║  ██║██║ ╚═╝ ██║███████╗`,
-	`   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝`,
-}
-
-// wordmarkASCII is the pure-ASCII fallback (figlet "Standard", all width-1
-// glyphs) used under --ascii / legacy conhost where the block glyphs break.
-var wordmarkASCII = []string{
-	` _____ _    ____  _  _______ ____      _    __  __ _____ `,
-	`|_   _/ \  / ___|| |/ /  ___|  _ \    / \  |  \/  | ____|`,
-	`  | |/ _ \ \___ \| ' /| |_  | |_) |  / _ \ | |\/| |  _|  `,
-	`  | / ___ \ ___) | . \|  _| |  _ <  / ___ \| |  | | |___ `,
-	`  |_/_/   \_\____/|_|\_\_|   |_| \_\/_/   \_\_|  |_|_____|`,
-}
-
 // Banner returns the startup logo: the "TASKFRAME" wordmark in big ASCII art
-// (accent color) above the subtitle. The default ANSI Shadow style uses Unicode
-// block glyphs; when ascii is set, a width-1 pure-ASCII wordmark is used instead
-// so it renders on legacy conhost / --ascii.
+// (gradient or accent color, see ui.Wordmark) above the subtitle. The default
+// ANSI Shadow style uses Unicode block glyphs; when ascii is set, a width-1
+// pure-ASCII wordmark is used instead so it renders on legacy conhost / --ascii.
 func Banner(th ui.Theme, ascii bool, lang i18n.Lang) string {
-	wordmark := wordmarkShadow
-	if ascii {
-		wordmark = wordmarkASCII
-	}
-	// vertical gradient: each row gets a solid color from top (GradFrom) to
-	// bottom (GradTo); falls back to a flat accent when no endpoints are set.
-	lines := wordmark
-	if th.GradFrom != "" && th.GradTo != "" {
-		lines = ui.GradientBlock(wordmark, th.GradFrom, th.GradTo)
-	} else {
-		lines = make([]string, len(wordmark))
-		for i, line := range wordmark {
-			lines[i] = th.Accent.Render(line)
-		}
-	}
 	var b strings.Builder
-	for _, line := range lines {
+	for _, line := range ui.Wordmark(th, ascii) {
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
