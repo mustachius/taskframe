@@ -27,14 +27,16 @@ const (
 	sbSeparator
 	sbActive
 	sbNext
+	sbContext
 )
 
 type sbItem struct {
-	kind  sbKind
-	label string
-	value string // dotted project path (sbProject) or tag name (sbTag)
-	depth int
-	count int
+	kind   sbKind
+	label  string
+	value  string // dotted project path (sbProject), tag (sbTag) or context name
+	depth  int
+	count  int
+	active bool // sbContext: this is the active context
 }
 
 // Sidebar is the left panel: project tree, virtual filters and tags.
@@ -94,6 +96,16 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 		sort.Strings(tags)
 		for _, t := range tags {
 			s.items = append(s.items, sbItem{kind: sbTag, label: "+" + t, value: t, count: d.tags[t]})
+		}
+	}
+
+	if len(d.contexts) > 0 {
+		s.items = append(s.items, sbItem{kind: sbSeparator})
+		for _, c := range d.contexts {
+			s.items = append(s.items, sbItem{
+				kind: sbContext, label: "@" + c.name, value: c.name,
+				count: c.count, active: c.name == d.activeCtx,
+			})
 		}
 	}
 
@@ -174,6 +186,9 @@ func (s *Sidebar) Filter() task.Filter {
 	case sbDeleted:
 		return task.Filter{Status: task.StatusDeleted}
 	default:
+		// sbContext rows included: resting on one filters nothing extra —
+		// activation is a deliberate Enter (applySidebar runs on every move,
+		// so Filter() must stay free of side effects)
 		return task.Filter{}
 	}
 }
@@ -200,6 +215,8 @@ func (s *Sidebar) Title(lang i18n.Lang) string {
 		return lang.T("sb.waiting")
 	case sbTag:
 		return lang.T("sb.title.of") + "+" + it.value
+	case sbContext:
+		return lang.T("sb.title.of") + "@" + it.value
 	case sbDone:
 		return lang.T("sb.done")
 	case sbDeleted:
@@ -229,6 +246,14 @@ func (s *Sidebar) CurrentProject() string {
 	return ""
 }
 
+// CurrentContext returns the context name under the cursor, if any.
+func (s *Sidebar) CurrentContext() (string, bool) {
+	if s.cursor < len(s.items) && s.items[s.cursor].kind == sbContext {
+		return s.items[s.cursor].value, true
+	}
+	return "", false
+}
+
 // Lines renders the sidebar content for the given inner size.
 func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 	if s.cursor < s.offset {
@@ -246,7 +271,11 @@ func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 		}
 		count := fmt.Sprintf("%d", it.count)
 		indent := strings.Repeat("  ", it.depth)
-		label := truncRunes(indent+it.label, w-len(count)-2)
+		name := it.label
+		if it.kind == sbContext && it.active {
+			name = "● " + name
+		}
+		label := truncRunes(indent+name, w-len(count)-2)
 		gap := w - len([]rune(label)) - len(count) - 1
 		if gap < 1 {
 			gap = 1
@@ -260,6 +289,10 @@ func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 		case sbOverdue:
 			if it.count > 0 {
 				style = th.Overdue
+			}
+		case sbContext:
+			if it.active {
+				style = th.Accent
 			}
 		}
 		if i == s.cursor && focused {

@@ -441,4 +441,6 @@ tokens (add e list):
 	"app.lang":               {"language: %s", "idioma: %s"},
 	"app.taskStarted":        {"task %d started", "tarefa %d iniciada"},
 	"app.taskStopped":        {"task %d stopped", "tarefa %d parada"},
+	"app.ctxActive":          {"context: %s", "contexto: %s"},
+	"app.ctxCleared":         {"context cleared", "contexto desativado"},
 }

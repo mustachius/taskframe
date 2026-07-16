@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -98,11 +99,18 @@ func (a *App) Init() tea.Cmd {
 // --- commands (all store access happens here) ---
 
 func (a *App) loadTasksCmd() tea.Cmd {
-	f := a.filter
-	if f.Status == "" && !f.IncludeAll && !f.WaitingOnly {
-		f.HideWaiting = true
-	}
+	base := a.filter
 	return func() tea.Msg {
+		// fold the active context in, REPL-style: the sidebar's own scalars
+		// win over the context's, tags union (see model.applyContext)
+		cf, _, err := a.store.ContextFilter(time.Now())
+		if err != nil {
+			return errMsg{err}
+		}
+		f := cf.Merge(base)
+		if f.Status == "" && !f.IncludeAll && !f.WaitingOnly {
+			f.HideWaiting = true
+		}
 		tasks, err := a.store.List(f)
 		if err != nil {
 			return errMsg{err}
@@ -125,9 +133,17 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+		now := time.Now()
+		cf, activeCtx, err := a.store.ContextFilter(now)
+		if err != nil {
+			return errMsg{err}
+		}
+		ctxDefs, err := a.store.Contexts()
+		if err != nil {
+			return errMsg{err}
+		}
 		// counts mirror what each virtual filter shows when selected
 		// (pending + waiting hidden), so numbers always match the list
-		now := time.Now()
 		eodToday := task.EndOfDay(now)
 		eodWeek := task.EndOfDay(now.AddDate(0, 0, 7))
 		count := func(f task.Filter) int {
@@ -140,22 +156,42 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 			}
 			return len(ts)
 		}
-		next := count(task.Filter{})
+		// virtual-filter counts fold the active context in, like the list does
+		// when they are selected; project and tag counts stay global (they
+		// answer "how many exist", not "how many under this context")
+		countCtx := func(f task.Filter) int { return count(cf.Merge(f)) }
+		var ctxs []ctxEntry
+		names := make([]string, 0, len(ctxDefs))
+		for n := range ctxDefs {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			c := 0
+			if _, f, text, perr := task.ParseTokens(strings.Fields(ctxDefs[n]), now); perr == nil {
+				f.Text = text
+				c = count(f)
+			}
+			ctxs = append(ctxs, ctxEntry{name: n, count: c})
+		}
+		next := countCtx(task.Filter{})
 		if r, ok := task.LookupReport("next"); ok && r.Limit > 0 && next > r.Limit {
 			next = r.Limit
 		}
 		return projectsLoadedMsg{data: sidebarData{
-			counts:  counts,
-			tags:    tags,
-			total:   total,
-			today:   count(task.Filter{DueBefore: &eodToday}),
-			overdue: count(task.Filter{DueBefore: &now}),
-			week:    count(task.Filter{DueBefore: &eodWeek}),
-			active:  count(task.Filter{ActiveOnly: true}),
-			next:    next,
-			waiting: count(task.Filter{WaitingOnly: true}),
-			done:    count(task.Filter{Status: task.StatusDone}),
-			del:     count(task.Filter{Status: task.StatusDeleted}),
+			counts:    counts,
+			tags:      tags,
+			total:     total,
+			today:     countCtx(task.Filter{DueBefore: &eodToday}),
+			overdue:   countCtx(task.Filter{DueBefore: &now}),
+			week:      countCtx(task.Filter{DueBefore: &eodWeek}),
+			active:    countCtx(task.Filter{ActiveOnly: true}),
+			next:      next,
+			waiting:   countCtx(task.Filter{WaitingOnly: true}),
+			done:      countCtx(task.Filter{Status: task.StatusDone}),
+			del:       countCtx(task.Filter{Status: task.StatusDeleted}),
+			contexts:  ctxs,
+			activeCtx: activeCtx,
 		}}
 	}
 }
@@ -223,6 +259,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case projectsLoadedMsg:
 		a.sidebar.SetCounts(a.lang, msg.data)
+		a.activeCtx = msg.data.activeCtx
 		return a, nil
 
 	case detailLoadedMsg:
@@ -390,6 +427,9 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		if a.focus == focusSidebar {
+			if name, ok := a.sidebar.CurrentContext(); ok {
+				return a, a.toggleContextCmd(name)
+			}
 			a.focus = focusList
 			return a, nil
 		}
@@ -550,6 +590,28 @@ func (a *App) toggleDone() (tea.Model, tea.Cmd) {
 			return statusMsg(a.lang.Tf("app.taskReopened", id))
 		}
 		return statusMsg(a.lang.T("app.taskDeletedRestore"))
+	}
+}
+
+// toggleContextCmd activates the named context, or clears it when it is
+// already the active one. Contexts live in settings — deliberately not
+// undoable — and the statusMsg reload re-renders everything context-aware.
+func (a *App) toggleContextCmd(name string) tea.Cmd {
+	return func() tea.Msg {
+		active, err := a.store.ActiveContext()
+		if err != nil {
+			return errMsg{err}
+		}
+		if active == name {
+			if err := a.store.SetActiveContext(""); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(a.lang.T("app.ctxCleared"))
+		}
+		if err := a.store.SetActiveContext(name); err != nil {
+			return errMsg{err}
+		}
+		return statusMsg(a.lang.Tf("app.ctxActive", name))
 	}
 }
 
