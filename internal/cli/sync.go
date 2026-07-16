@@ -111,7 +111,7 @@ func backupDB(s *store.Store) (string, error) {
 		return "", err
 	}
 	_, backups := syncDirs(s)
-	if err := os.MkdirAll(backups, 0o755); err != nil {
+	if err := os.MkdirAll(backups, 0o700); err != nil {
 		return "", err
 	}
 	dst := filepath.Join(backups, "taskframe-"+time.Now().Format("20060102-150405")+".db")
@@ -128,7 +128,7 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func syncInit(s *store.Store, args []string, lang i18n.Lang) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 	defer cancel()
 
-	if err := os.MkdirAll(filepath.Dir(cloneDir), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cloneDir), 0o700); err != nil {
 		return nil, err
 	}
 	repo, err := gitsync.Clone(ctx, url, cloneDir)
@@ -401,7 +401,7 @@ func doPush(ctx context.Context, s *store.Store, repo *gitsync.Repo, branch, rem
 	if err := ensureGitAttributes(repo); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(repo.File(syncFile), data, 0o644); err != nil {
+	if err := os.WriteFile(repo.File(syncFile), data, 0o600); err != nil {
 		return nil, err
 	}
 	if _, err := repo.AddCommit(ctx, "taskframe sync "+time.Now().Format("2006-01-02 15:04:05")); err != nil {
@@ -432,7 +432,7 @@ func ensureGitAttributes(repo *gitsync.Repo) error {
 	if fileExists(p) {
 		return nil
 	}
-	return os.WriteFile(p, []byte(syncFile+" -text\n"), 0o644)
+	return os.WriteFile(p, []byte(syncFile+" -text\n"), 0o600)
 }
 
 // --- status -----------------------------------------------------------------

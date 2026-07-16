@@ -23,8 +23,8 @@ jobs:
   demo:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
       - name: Install ffmpeg
@@ -34,12 +34,12 @@ jobs:
       - name: Install ttyd
         run: |
           sudo curl -fsSL \
-            https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
+            https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 \
             -o /usr/local/bin/ttyd
           sudo chmod +x /usr/local/bin/ttyd
       - name: Install VHS and taskframe
         run: |
-          go install github.com/charmbracelet/vhs@latest
+          go install github.com/charmbracelet/vhs@v0.11.0
           go install ./cmd/taskframe
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Render demo
@@ -52,7 +52,7 @@ jobs:
           COLORTERM: truecolor
         run: vhs demo.tape
       - name: Commit demo.gif
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5
         with:
           commit_message: "chore: regenerate demo.gif [skip ci]"
           file_pattern: demo.gif

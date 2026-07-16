@@ -34,7 +34,8 @@ func DefaultPath() (string, error) {
 }
 
 func Open(path string) (*Store, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	// 0o700: the database holds personal data; keep other local users out on Unix.
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("creating db dir: %w", err)
 	}
 	dsn := "file:" + filepath.ToSlash(path) +
