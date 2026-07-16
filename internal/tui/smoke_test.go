@@ -424,6 +424,9 @@ func TestStartStopToggle(t *testing.T) {
 	if !strings.Contains(frame, "[>]") {
 		t.Error("active task should render the [>] marker")
 	}
+	if !strings.Contains(frame, "·<1m") {
+		t.Error("active task should show the elapsed time")
+	}
 	if !strings.Contains(frame, "started") {
 		t.Error("expected start status message")
 	}

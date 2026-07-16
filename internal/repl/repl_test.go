@@ -872,3 +872,22 @@ func TestEditAmendsTags(t *testing.T) {
 	}
 	_ = m
 }
+
+func TestElapsedShownOnActive(t *testing.T) {
+	tm, _ := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "start 1")
+	m = run(t, m, "list")
+	if v := stripANSI(m.View()); !strings.Contains(v, "·<1m") {
+		t.Errorf("active task should show elapsed time in the list, view:\n%s", v)
+	}
+	m = drive(t, m, key("enter")) // open detail of the cursor task
+	mm := m.(model)
+	joined := stripANSI(strings.Join(mm.detailLines, "\n"))
+	if !strings.Contains(joined, "· <1m") {
+		t.Errorf("detail Started row should show elapsed time, got:\n%s", joined)
+	}
+}

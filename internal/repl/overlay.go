@@ -251,7 +251,7 @@ func (m model) viewDetail() string {
 
 // detailBlock formats a task's fields, parent, subtasks, notes and activity
 // for the detail view.
-func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity, w int, ascii bool) []string {
+func detailBlock(th ui.Theme, lang i18n.Lang, now time.Time, t, parent *task.Task, children []*task.Task, notes []task.Note, acts []task.Activity, w int, ascii bool) []string {
 	label := func(s string) string { return th.Dim.Render(ui.PadRowPlain(s, 16)) }
 	val := func(s string) string { return th.Text.Render(s) }
 	var lines []string
@@ -260,7 +260,8 @@ func detailBlock(th ui.Theme, lang i18n.Lang, t, parent *task.Task, children []*
 	add(" " + th.TitleFocus.Render(ui.TruncRunes(t.Title, w-2)))
 	add(" " + label(lang.T("lbl.status")) + val(string(t.Status)))
 	if t.Start != nil {
-		add(" " + label(lang.T("lbl.started")) + th.Accent.Render(t.Start.Format("02/01/2006 15:04")))
+		add(" " + label(lang.T("lbl.started")) +
+			th.Accent.Render(t.Start.Format("02/01/2006 15:04")+" · "+ui.FormatElapsed(now.Sub(*t.Start))))
 	}
 	if parent != nil {
 		add(" " + label(lang.T("lbl.parent")) + val(ui.TruncRunes(fmt.Sprintf("#%d %s", parent.ID, parent.Title), w-18)))

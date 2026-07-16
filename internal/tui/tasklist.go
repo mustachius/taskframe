@@ -9,6 +9,7 @@ import (
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 type listRow struct {
@@ -189,6 +190,10 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 	}
 
 	indent := strings.Repeat("  ", r.depth)
+	elapsed := ""
+	if t.Status == task.StatusPending && t.IsActive() {
+		elapsed = " ·" + ui.FormatElapsed(now.Sub(*t.Start))
+	}
 	title := t.Title
 	for _, tag := range t.Tags {
 		title += " +" + tag
@@ -196,6 +201,7 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 	if t.Recur != "" {
 		title += " ~"
 	}
+	title += elapsed
 
 	head := fmt.Sprintf(" %s%3d %s %s %s  ", arrow, t.ID, mark, pri, due)
 
@@ -250,6 +256,9 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 	}
 	if t.Recur != "" {
 		segs = append(segs, seg{" ~", th.Dim})
+	}
+	if elapsed != "" {
+		segs = append(segs, seg{elapsed, th.Accent})
 	}
 	return renderSegs(segs, w)
 }
