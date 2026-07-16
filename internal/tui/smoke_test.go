@@ -378,6 +378,35 @@ func TestVirtualFilters(t *testing.T) {
 	}
 }
 
+func TestRedoKey(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	m = drive(t, m, key("d")) // complete cursor task
+	m = drive(t, m, key("u")) // undo → pending again
+	pend, _ := s.List(task.Filter{})
+	if len(pend) != 4 {
+		t.Fatalf("expected 4 pending after undo, got %d", len(pend))
+	}
+
+	m = drive(t, m, key("U")) // redo → completed again
+	pend, _ = s.List(task.Filter{})
+	if len(pend) != 3 {
+		t.Fatalf("expected 3 pending after redo, got %d", len(pend))
+	}
+	if !strings.Contains(stripANSI(m.View()), "redone") {
+		t.Error("expected redo status message")
+	}
+
+	m = drive(t, m, key("U")) // nothing left to redo → error status
+	if !a.statusErr {
+		t.Error("second U should surface 'nothing to redo' as an error status")
+	}
+	_ = m
+}
+
 func TestStartStopToggle(t *testing.T) {
 	a, s := newTestApp(t)
 	var m tea.Model = a

@@ -466,6 +466,15 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return statusMsg(a.lang.Tf("app.undone", desc))
 		}
 
+	case "U":
+		return a, func() tea.Msg {
+			desc, err := a.store.Redo()
+			if err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(a.lang.Tf("app.redone", desc))
+		}
+
 	case "t":
 		next := NextTheme(a.th.Name)
 		a.th = NewTheme(next, a.ascii)

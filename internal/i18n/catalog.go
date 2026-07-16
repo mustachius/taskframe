@@ -427,6 +427,7 @@ tokens (add e list):
 	"app.taskMoved":          {"task %d moved", "tarefa %d movida"},
 	"app.taskDeleted":        {"task %d deleted (u reverts)", "tarefa %d deletada (u desfaz)"},
 	"app.undone":             {"undone: %s", "desfeito: %s"},
+	"app.redone":             {"redone: %s", "refeito: %s"},
 	"app.theme":              {"theme: %s", "tema: %s"},
 	"app.sort":               {"sort: %s", "ordenação: %s"},
 	"app.taskDoneRecur":      {"task %d completed · recurrence created %d (due %s)", "tarefa %d concluída · recorrência criou %d (vence %s)"},
