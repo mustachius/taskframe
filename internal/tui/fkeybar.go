@@ -29,8 +29,8 @@ func renderFKeyBar(th Theme, keys []fkey, w int) string {
 		if used+cw > w {
 			break
 		}
-		b.WriteString(th.FKeyNum.Render(k.num))
-		b.WriteString(th.FKeyLabel.Render(label))
+		b.WriteString(th.ChipAlt.Render(k.num))
+		b.WriteString(th.Chip.Render(label))
 		b.WriteString(th.Status.Render(" "))
 		used += cw
 	}
