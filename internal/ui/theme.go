@@ -35,6 +35,7 @@ type palette struct {
 	text        lipgloss.Color
 	dim         lipgloss.Color
 	overdue     lipgloss.Color
+	warn        lipgloss.Color // due-soon: below overdue in urgency, above plain text
 	prioHi      lipgloss.Color
 	accent      lipgloss.Color
 	fkeyNumFg   lipgloss.Color
@@ -75,7 +76,7 @@ var palettes = map[string]palette{
 		title: "245", titleFocus: "255",
 		cursorFg: "255", cursorBg: "237",
 		text: "252", dim: "243",
-		overdue: "167", prioHi: "179", accent: "173",
+		overdue: "167", warn: "215", prioHi: "179", accent: "173",
 		fkeyNumFg: "245", fkeyLblFg: "250", fkeyLblBg: "237",
 		statusFg: "245", statusErr: "167",
 	},
@@ -86,7 +87,7 @@ var palettes = map[string]palette{
 		title: "#7fb2c8", titleFocus: "#ffd75f",
 		cursorFg: "#10182c", cursorBg: "#7fb2c8",
 		text: "#d8e2ec", dim: "#5a708c",
-		overdue: "#ff8a80", prioHi: "#ffd75f", accent: "#e8a87c",
+		overdue: "#ff8a80", warn: "#ffb86c", prioHi: "#ffd75f", accent: "#e8a87c",
 		fkeyNumFg: "#e8f4f8", fkeyNumBg: "#10182c",
 		fkeyLblFg: "#10182c", fkeyLblBg: "#7fb2c8",
 		statusFg: "#d8e2ec", statusBg: "#10182c", statusErr: "#ff8a80",
@@ -97,7 +98,7 @@ var palettes = map[string]palette{
 		title: "28", titleFocus: "46",
 		cursorFg: "16", cursorBg: "34",
 		text: "40", dim: "22",
-		overdue: "118", prioHi: "46", accent: "40",
+		overdue: "118", warn: "154", prioHi: "46", accent: "40",
 		fkeyNumFg: "46", fkeyLblFg: "16", fkeyLblBg: "34",
 		statusFg: "34", statusErr: "118",
 	},
@@ -107,7 +108,7 @@ var palettes = map[string]palette{
 		title: "130", titleFocus: "220",
 		cursorFg: "16", cursorBg: "172",
 		text: "214", dim: "94",
-		overdue: "220", prioHi: "220", accent: "214",
+		overdue: "220", warn: "208", prioHi: "220", accent: "214",
 		fkeyNumFg: "214", fkeyLblFg: "16", fkeyLblBg: "172",
 		statusFg: "172", statusErr: "220",
 	},
@@ -118,7 +119,7 @@ var palettes = map[string]palette{
 		title: "#bd93f9", titleFocus: "#ff79c6",
 		cursorFg: "#f8f8f2", cursorBg: "#44475a",
 		text: "#f8f8f2", dim: "#6272a4",
-		overdue: "#ff5555", prioHi: "#f1fa8c", accent: "#bd93f9",
+		overdue: "#ff5555", warn: "#ffb86c", prioHi: "#f1fa8c", accent: "#bd93f9",
 		fkeyNumFg: "#f8f8f2", fkeyLblFg: "#f8f8f2", fkeyLblBg: "#44475a",
 		statusFg: "#6272a4", statusErr: "#ff5555",
 		mdStyle: "dracula",
@@ -128,7 +129,7 @@ var palettes = map[string]palette{
 		title: "#cba6f7", titleFocus: "#f5c2e7",
 		cursorFg: "#cdd6f4", cursorBg: "#313244",
 		text: "#cdd6f4", dim: "#6c7086",
-		overdue: "#f38ba8", prioHi: "#f9e2af", accent: "#cba6f7",
+		overdue: "#f38ba8", warn: "#fab387", prioHi: "#f9e2af", accent: "#cba6f7",
 		fkeyNumFg: "#cdd6f4", fkeyLblFg: "#cdd6f4", fkeyLblBg: "#313244",
 		statusFg: "#6c7086", statusErr: "#f38ba8",
 	},
@@ -137,7 +138,7 @@ var palettes = map[string]palette{
 		title: "#88c0d0", titleFocus: "#8fbcbb",
 		cursorFg: "#eceff4", cursorBg: "#3b4252",
 		text: "#d8dee9", dim: "#4c566a",
-		overdue: "#bf616a", prioHi: "#ebcb8b", accent: "#88c0d0",
+		overdue: "#bf616a", warn: "#d08770", prioHi: "#ebcb8b", accent: "#88c0d0",
 		fkeyNumFg: "#eceff4", fkeyLblFg: "#eceff4", fkeyLblBg: "#3b4252",
 		statusFg: "#4c566a", statusErr: "#bf616a",
 	},
@@ -146,7 +147,7 @@ var palettes = map[string]palette{
 		title: "#fabd2f", titleFocus: "#fe8019",
 		cursorFg: "#ebdbb2", cursorBg: "#3c3836",
 		text: "#ebdbb2", dim: "#928374",
-		overdue: "#fb4934", prioHi: "#fabd2f", accent: "#fe8019",
+		overdue: "#fb4934", warn: "#d65d0e", prioHi: "#fabd2f", accent: "#fe8019",
 		fkeyNumFg: "#ebdbb2", fkeyLblFg: "#ebdbb2", fkeyLblBg: "#3c3836",
 		statusFg: "#928374", statusErr: "#fb4934",
 	},
@@ -155,7 +156,7 @@ var palettes = map[string]palette{
 		title: "#268bd2", titleFocus: "#2aa198",
 		cursorFg: "#eee8d5", cursorBg: "#073642",
 		text: "#93a1a1", dim: "#586e75",
-		overdue: "#dc322f", prioHi: "#b58900", accent: "#268bd2",
+		overdue: "#dc322f", warn: "#cb4b16", prioHi: "#b58900", accent: "#268bd2",
 		fkeyNumFg: "#eee8d5", fkeyLblFg: "#eee8d5", fkeyLblBg: "#073642",
 		statusFg: "#586e75", statusErr: "#dc322f",
 	},
@@ -164,7 +165,7 @@ var palettes = map[string]palette{
 		title: "#7aa2f7", titleFocus: "#bb9af7",
 		cursorFg: "#c0caf5", cursorBg: "#292e42",
 		text: "#c0caf5", dim: "#565f89",
-		overdue: "#f7768e", prioHi: "#e0af68", accent: "#7aa2f7",
+		overdue: "#f7768e", warn: "#ff9e64", prioHi: "#e0af68", accent: "#7aa2f7",
 		fkeyNumFg: "#c0caf5", fkeyLblFg: "#c0caf5", fkeyLblBg: "#292e42",
 		statusFg: "#565f89", statusErr: "#f7768e",
 		mdStyle: "tokyo-night",
@@ -211,6 +212,7 @@ type Theme struct {
 	Dim     lipgloss.Style
 	Done    lipgloss.Style
 	Overdue lipgloss.Style
+	Warn    lipgloss.Style // due-soon: below Overdue in urgency
 	PrioHi  lipgloss.Style
 	Accent  lipgloss.Style
 
@@ -218,6 +220,9 @@ type Theme struct {
 	FKeyLabel lipgloss.Style
 	Status    lipgloss.Style
 	StatusErr lipgloss.Style
+	// StatusAccent is the accent over the status-bar background — Accent itself
+	// carries the panel bg, which differs from statusBg on bg-painting themes.
+	StatusAccent lipgloss.Style
 }
 
 func NewTheme(name string, ascii bool) Theme {
@@ -249,27 +254,29 @@ func NewTheme(name string, ascii bool) Theme {
 	}
 
 	th := Theme{
-		Name:        name,
-		Box:         box,
-		GradFrom:    grad[0],
-		GradTo:      grad[1],
-		MDStyle:     mdStyle,
-		Bg:          base,
-		Border:      fg(p.border),
-		BorderFocus: fg(p.borderFocus),
-		Title:       fg(p.title),
-		TitleFocus:  fg(p.titleFocus).Bold(true),
-		Cursor:      lipgloss.NewStyle().Foreground(p.cursorFg).Background(p.cursorBg),
-		Text:        fg(p.text),
-		Dim:         fg(p.dim),
-		Done:        fg(p.dim).Strikethrough(true),
-		Overdue:     fg(p.overdue).Bold(true),
-		PrioHi:      fg(p.prioHi).Bold(true),
-		Accent:      fg(p.accent),
-		FKeyNum:     withBg(lipgloss.NewStyle().Foreground(p.fkeyNumFg), p.fkeyNumBg),
-		FKeyLabel:   withBg(lipgloss.NewStyle().Foreground(p.fkeyLblFg), p.fkeyLblBg),
-		Status:      withBg(lipgloss.NewStyle().Foreground(p.statusFg), p.statusBg),
-		StatusErr:   withBg(lipgloss.NewStyle().Foreground(p.statusErr), p.statusBg).Bold(true),
+		Name:         name,
+		Box:          box,
+		GradFrom:     grad[0],
+		GradTo:       grad[1],
+		MDStyle:      mdStyle,
+		Bg:           base,
+		Border:       fg(p.border),
+		BorderFocus:  fg(p.borderFocus),
+		Title:        fg(p.title),
+		TitleFocus:   fg(p.titleFocus).Bold(true),
+		Cursor:       lipgloss.NewStyle().Foreground(p.cursorFg).Background(p.cursorBg),
+		Text:         fg(p.text),
+		Dim:          fg(p.dim),
+		Done:         fg(p.dim).Strikethrough(true),
+		Overdue:      fg(p.overdue).Bold(true),
+		Warn:         fg(p.warn),
+		PrioHi:       fg(p.prioHi).Bold(true),
+		Accent:       fg(p.accent),
+		FKeyNum:      withBg(lipgloss.NewStyle().Foreground(p.fkeyNumFg), p.fkeyNumBg),
+		FKeyLabel:    withBg(lipgloss.NewStyle().Foreground(p.fkeyLblFg), p.fkeyLblBg),
+		Status:       withBg(lipgloss.NewStyle().Foreground(p.statusFg), p.statusBg),
+		StatusErr:    withBg(lipgloss.NewStyle().Foreground(p.statusErr), p.statusBg).Bold(true),
+		StatusAccent: withBg(lipgloss.NewStyle().Foreground(p.accent), p.statusBg),
 	}
 
 	// The default dark theme paints no background, so on a light terminal its

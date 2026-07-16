@@ -47,3 +47,25 @@ func GradientBlock(lines []string, from, to string) []string {
 	}
 	return out
 }
+
+// GradientLine colors a single plain line left-to-right, one interpolated
+// color per rune — GradientBlock's horizontal counterpart, for one-row brands.
+// Returns s unchanged when an endpoint is not "#rrggbb".
+func GradientLine(s, from, to string) string {
+	fr, fg, fb, ok1 := parseHex(from)
+	tr, tg, tb, ok2 := parseHex(to)
+	runes := []rune(s)
+	if !ok1 || !ok2 || len(runes) == 0 {
+		return s
+	}
+	n := len(runes)
+	var b strings.Builder
+	for i, r := range runes {
+		t := 0.0
+		if n > 1 {
+			t = float64(i) / float64(n-1)
+		}
+		b.WriteString(lipgloss.NewStyle().Foreground(blendHex(fr, fg, fb, tr, tg, tb, t)).Render(string(r)))
+	}
+	return b.String()
+}
