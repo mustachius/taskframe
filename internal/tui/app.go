@@ -681,18 +681,25 @@ func (a *App) statusLine() string {
 	if a.status != "" {
 		left = " " + a.status + " ·" + info
 	}
-	// right-aligned sort indicator; the left side yields space when tight.
-	rightSeg := a.lang.Tf("app.sort", a.lang.T("sort."+string(a.sortMode))) + " "
-	avail := a.w - len([]rune(rightSeg))
+	// right-aligned: [@context ·] language · sort — widths measured on the
+	// plain strings before styling; the left side yields space when tight.
+	ctxSeg := ""
+	if a.activeCtx != "" {
+		ctxSeg = "@" + a.activeCtx + " · "
+	}
+	restSeg := langTag(a.lang) + " · " + a.lang.Tf("app.sort", a.lang.T("sort."+string(a.sortMode))) + " "
+	rightW := len([]rune(ctxSeg)) + len([]rune(restSeg))
+	avail := a.w - rightW
 	if avail < 0 {
 		avail = 0
 	}
 	left = truncRunes(left, avail)
-	gap := a.w - len([]rune(left)) - len([]rune(rightSeg))
+	gap := a.w - len([]rune(left)) - rightW
 	if gap < 0 {
 		gap = 0
 	}
-	return style.Render(left) + style.Render(strings.Repeat(" ", gap)) + style.Render(rightSeg)
+	return style.Render(left) + style.Render(strings.Repeat(" ", gap)) +
+		a.th.StatusAccent.Render(ctxSeg) + style.Render(restSeg)
 }
 
 // joinHorizontal glues two multi-line blocks side by side.

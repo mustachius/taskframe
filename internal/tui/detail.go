@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/i18n"
@@ -45,21 +46,40 @@ func (d *Detail) View(th Theme, w, h int) string {
 	var lines []string
 	add := func(s string) { lines = append(lines, s) }
 
+	now := time.Now()
 	add("")
 	add(" " + th.TitleFocus.Render(truncRunes(t.Title, w-8)))
 	add("")
-	add(" " + label(d.lang.T("lbl.status")) + val(string(t.Status)))
+	statusStyle := th.Text
+	if t.Status != task.StatusPending {
+		statusStyle = th.Dim
+	}
+	add(" " + label(d.lang.T("lbl.status")) + statusStyle.Render(string(t.Status)))
 	if t.Project != "" {
-		add(" " + label(d.lang.T("lbl.project")) + val(t.Project))
+		add(" " + label(d.lang.T("lbl.project")) + th.Accent.Render(t.Project))
 	}
 	if len(t.Tags) > 0 {
-		add(" " + label(d.lang.T("lbl.tags")) + val("+"+strings.Join(t.Tags, " +")))
+		add(" " + label(d.lang.T("lbl.tags")) + th.Accent.Render("+"+strings.Join(t.Tags, " +")))
 	}
 	if t.Priority != task.PriorityNone {
-		add(" " + label(d.lang.T("lbl.priority")) + val(string(t.Priority)))
+		priStyle := th.Text
+		switch t.Priority {
+		case task.PriorityHigh:
+			priStyle = th.PrioHi
+		case task.PriorityMed:
+			priStyle = th.Accent
+		}
+		add(" " + label(d.lang.T("lbl.priority")) + priStyle.Render(string(t.Priority)))
 	}
 	if t.Due != nil {
-		add(" " + label(d.lang.T("lbl.due")) + val(t.Due.Format("02/01/2006")))
+		dueStyle := th.Text
+		switch {
+		case t.IsOverdue(now):
+			dueStyle = th.Overdue
+		case !t.Due.After(task.EndOfDay(now)):
+			dueStyle = th.Warn
+		}
+		add(" " + label(d.lang.T("lbl.due")) + dueStyle.Render(t.Due.Format("02/01/2006")))
 	}
 	if t.Wait != nil {
 		add(" " + label(d.lang.T("lbl.waitUntil")) + val(t.Wait.Format("02/01/2006")))
@@ -68,7 +88,10 @@ func (d *Detail) View(th Theme, w, h int) string {
 		add(" " + label(d.lang.T("lbl.scheduled")) + val(t.Scheduled.Format("02/01/2006")))
 	}
 	if t.Recur != "" {
-		add(" " + label(d.lang.T("lbl.recurrence")) + val(t.Recur))
+		add(" " + label(d.lang.T("lbl.recurrence")) + th.Dim.Render(t.Recur))
+	}
+	if t.Start != nil {
+		add(" " + label(d.lang.T("lbl.started")) + th.Accent.Render(t.Start.Format("02/01/2006 15:04")))
 	}
 	add(" " + label(d.lang.T("lbl.created")) + val(t.CreatedAt.Format("02/01/2006 15:04")))
 	if t.CompletedAt != nil {

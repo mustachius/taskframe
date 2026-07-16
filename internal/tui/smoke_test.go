@@ -663,4 +663,30 @@ func TestDetailAndHelp(t *testing.T) {
 	if !strings.Contains(frame, "switch panels") {
 		t.Error("expected help modal")
 	}
+	if !strings.Contains(frame, "redo undone operation") {
+		t.Error("help should list the new keys (U redo)")
+	}
+}
+
+// TestFrameLineWidths guards the segment-styled rows: every frame line must
+// still span exactly the terminal width after stripping ANSI.
+func TestFrameLineWidths(t *testing.T) {
+	a, s := newTestApp(t)
+	s.DefineContext("work", "pro:trabalho")
+	s.SetActiveContext("work") // context indicator on the status bar
+	overdue := time.Now().Add(-24 * time.Hour)
+	s.AddTask(&task.Task{Title: "atrasada", Due: &overdue, Project: "casa", Priority: task.PriorityMed})
+
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	for _, size := range []tea.WindowSizeMsg{{Width: 100, Height: 30}, {Width: 80, Height: 20}} {
+		m = drive(t, m, size)
+		frame := stripANSI(m.View())
+		for i, ln := range strings.Split(frame, "\n") {
+			if n := len([]rune(ln)); n != size.Width {
+				t.Errorf("%dx%d: line %d has width %d, want %d: %q",
+					size.Width, size.Height, i, n, size.Width, ln)
+			}
+		}
+	}
 }

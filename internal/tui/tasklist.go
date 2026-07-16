@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
@@ -197,25 +198,79 @@ func (l *TaskList) renderRow(th Theme, r listRow, w int, now time.Time, isCursor
 	}
 
 	head := fmt.Sprintf(" %s%3d %s %s %s  ", arrow, t.ID, mark, pri, due)
-	body := truncRunes(indent+title, w-len([]rune(head)))
-	plain := head + body
 
+	// the cursor row stays a plain string under one whole-row style — nesting
+	// styled segments inside it would cut the highlight mid-row
 	if isCursor {
-		return th.Cursor.Render(padRowPlain(plain, w))
+		body := truncRunes(indent+title, w-len([]rune(head)))
+		return th.Cursor.Render(padRowPlain(head+body, w))
 	}
 
-	// segment styling: due date red when overdue, priority H highlighted
-	headStyle := th.Text
-	bodyStyle := th.Text
-	switch {
-	case t.Status == task.StatusDone:
-		headStyle, bodyStyle = th.Dim, th.Done
-	case t.Status == task.StatusDeleted:
-		headStyle, bodyStyle = th.Dim, th.Dim
-	case t.IsOverdue(now):
-		headStyle = th.Overdue
-	case t.Priority == task.PriorityHigh:
-		headStyle = th.PrioHi
+	switch t.Status {
+	case task.StatusDone:
+		body := truncRunes(indent+title, w-len([]rune(head)))
+		return th.Dim.Render(head) + th.Done.Render(body)
+	case task.StatusDeleted:
+		body := truncRunes(indent+title, w-len([]rune(head)))
+		return th.Dim.Render(head + body)
 	}
-	return headStyle.Render(head) + bodyStyle.Render(body)
+
+	// pending rows: segment-level colors — active mark, priority, due, tags
+	markStyle := th.Text
+	if t.IsActive() {
+		markStyle = th.Accent
+	}
+	priStyle := th.Text
+	switch t.Priority {
+	case task.PriorityHigh:
+		priStyle = th.PrioHi
+	case task.PriorityMed:
+		priStyle = th.Accent
+	}
+	dueStyle := th.Text
+	if t.Due != nil {
+		switch {
+		case t.IsOverdue(now):
+			dueStyle = th.Overdue
+		case !t.Due.After(task.EndOfDay(now)):
+			dueStyle = th.Warn
+		}
+	}
+	segs := []seg{
+		{fmt.Sprintf(" %s%3d ", arrow, t.ID), th.Dim},
+		{mark, markStyle},
+		{" ", th.Text},
+		{pri, priStyle},
+		{" ", th.Text},
+		{due, dueStyle},
+		{"  " + indent + t.Title, th.Text},
+	}
+	for _, tag := range t.Tags {
+		segs = append(segs, seg{" +" + tag, th.Accent})
+	}
+	if t.Recur != "" {
+		segs = append(segs, seg{" ~", th.Dim})
+	}
+	return renderSegs(segs, w)
+}
+
+// seg is one independently styled slice of a rendered row.
+type seg struct {
+	text  string
+	style lipgloss.Style
+}
+
+// renderSegs styles segments left-to-right, truncating (…) at max cells.
+func renderSegs(segs []seg, max int) string {
+	var b strings.Builder
+	used := 0
+	for _, sg := range segs {
+		if used >= max {
+			break
+		}
+		txt := truncRunes(sg.text, max-used)
+		b.WriteString(sg.style.Render(txt))
+		used += len([]rune(txt))
+	}
+	return b.String()
 }

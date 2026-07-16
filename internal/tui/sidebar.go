@@ -84,7 +84,7 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 	}
 
 	s.items = append(s.items,
-		sbItem{kind: sbSeparator},
+		sbItem{kind: sbSeparator, label: lang.T("sb.sec.filters")},
 		sbItem{kind: sbToday, label: lang.T("sb.today"), count: d.today},
 		sbItem{kind: sbOverdue, label: lang.T("sb.overdue"), count: d.overdue},
 		sbItem{kind: sbWeek, label: lang.T("sb.week"), count: d.week},
@@ -94,7 +94,7 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 	)
 
 	if len(d.tags) > 0 {
-		s.items = append(s.items, sbItem{kind: sbSeparator})
+		s.items = append(s.items, sbItem{kind: sbSeparator, label: lang.T("sb.sec.tags")})
 		tags := make([]string, 0, len(d.tags))
 		for t := range d.tags {
 			tags = append(tags, t)
@@ -106,7 +106,7 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 	}
 
 	if len(d.contexts) > 0 {
-		s.items = append(s.items, sbItem{kind: sbSeparator})
+		s.items = append(s.items, sbItem{kind: sbSeparator, label: lang.T("sb.sec.contexts")})
 		for _, c := range d.contexts {
 			s.items = append(s.items, sbItem{
 				kind: sbContext, label: "@" + c.name, value: c.name,
@@ -116,7 +116,7 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 	}
 
 	s.items = append(s.items,
-		sbItem{kind: sbSeparator},
+		sbItem{kind: sbSeparator, label: lang.T("sb.sec.archive")},
 		sbItem{kind: sbDone, label: lang.T("sb.done"), count: d.done},
 		sbItem{kind: sbDeleted, label: lang.T("sb.deleted"), count: d.del},
 	)
@@ -272,7 +272,18 @@ func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 	for i := s.offset; i < len(s.items) && len(lines) < h; i++ {
 		it := s.items[i]
 		if it.kind == sbSeparator {
-			lines = append(lines, th.Border.Render(strings.Repeat("─", w)))
+			if it.label == "" {
+				lines = append(lines, th.Border.Render(strings.Repeat("─", w)))
+				continue
+			}
+			// labeled section header: ─ label ────
+			name := truncRunes(it.label, w-4)
+			rest := w - len([]rune(name)) - 3
+			if rest < 0 {
+				rest = 0
+			}
+			lines = append(lines, th.Border.Render("─ ")+th.Title.Render(name)+
+				th.Border.Render(" "+strings.Repeat("─", rest)))
 			continue
 		}
 		count := fmt.Sprintf("%d", it.count)
@@ -301,36 +312,47 @@ func (s *Sidebar) Lines(th Theme, w, h int, focused bool) []string {
 		if gap < 1 {
 			gap = 1
 		}
-		row := " " + label + strings.Repeat(" ", gap-1) + count + " "
 		style := th.Text
+		emphasized := false // keep the count in the row color (e.g. overdue red)
 		switch it.kind {
 		case sbDone, sbDeleted:
 			style = th.Dim
+			emphasized = true
 		case sbOverdue:
 			if it.count > 0 {
 				style = th.Overdue
+				emphasized = true
 			}
+		case sbTag:
+			style = th.Accent
 		case sbContext:
 			if it.active {
 				style = th.Accent
 			}
 		}
-		if i == s.cursor && focused {
-			style = th.Cursor
-		} else if i == s.cursor {
+		if i == s.cursor {
+			// cursor rows: plain string under one whole-row style — nesting
+			// styled segments would break the highlight mid-row
 			style = th.Accent
-		}
-		if barW == 0 {
+			if focused {
+				style = th.Cursor
+			}
+			row := " " + label + strings.Repeat(" ", gap-1) + count + " "
+			if barW > 0 {
+				row += ui.ProgressGlyphs(frac, barW, th.ASCII()) + " "
+			}
 			lines = append(lines, style.Render(truncRunes(row, w)))
 			continue
 		}
-		if i == s.cursor && focused {
-			// cursor row: plain glyphs inside the single whole-row style —
-			// nesting styled segments would break the highlight mid-row
-			lines = append(lines, style.Render(row+ui.ProgressGlyphs(frac, barW, th.ASCII())+" "))
-			continue
+		countStyle := th.Dim
+		if emphasized {
+			countStyle = style
 		}
-		lines = append(lines, style.Render(row)+ui.ProgressBar(frac, barW, th)+style.Render(" "))
+		out := style.Render(" "+label+strings.Repeat(" ", gap-1)) + countStyle.Render(count+" ")
+		if barW > 0 {
+			out += ui.ProgressBar(frac, barW, th) + style.Render(" ")
+		}
+		lines = append(lines, out)
 	}
 	return lines
 }
