@@ -52,6 +52,7 @@ type App struct {
 	modal   Modal
 
 	filter    task.Filter
+	activeCtx string // name of the active context ("" = none)
 	search    textinput.Model
 	searching bool
 
@@ -70,6 +71,9 @@ func Run(s *store.Store, opts Options) error {
 }
 
 func newApp(s *store.Store, opts Options) *App {
+	// normalize once so i18n.Next and the header language tag always see a
+	// valid code (tests construct Options{} with a zero Lang)
+	opts.Lang = i18n.Normalize(string(opts.Lang))
 	search := textinput.New()
 	search.Prompt = opts.Lang.T("app.searchPrompt")
 	search.CharLimit = 100
@@ -523,13 +527,16 @@ func (a *App) View() string {
 		return a.lang.T("app.windowSmall")
 	}
 
-	panelH := a.h - 2
+	// the header shrinks the panel area; the frame always spans exactly a.h rows
+	header := a.renderHeader()
+	hdr := strings.Join(header, "\n") + "\n"
+	panelH := a.h - 2 - len(header)
 	listW := a.w - sidebarWidth
 
 	if a.modal != nil {
 		content := a.modal.View(a.th, a.w, panelH)
 		bg := lipglossPlace(a.th, content, a.w, panelH)
-		return bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
+		return hdr + bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
 	}
 
 	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, panelH-2, a.focus == focusSidebar)
@@ -539,7 +546,7 @@ func (a *App) View() string {
 	right := drawBox(a.th, a.sidebar.Title(a.lang), listLines, listW, panelH, a.focus == focusList)
 
 	panels := joinHorizontal(left, right)
-	return panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
+	return hdr + panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
 }
 
 func (a *App) statusLine() string {

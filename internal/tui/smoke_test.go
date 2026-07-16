@@ -129,6 +129,7 @@ func TestMainFrameLayout(t *testing.T) {
 	frame := stripANSI(m.View())
 
 	for _, want := range []string{
+		"████",                  // wordmark header (full variant at 100×30)
 		"╔", "╗", "╚", "╝", "║", // NC double borders
 		"Projects", "(all)",
 		"casa", "mercado", "trabalho",
@@ -144,6 +145,41 @@ func TestMainFrameLayout(t *testing.T) {
 	lines := strings.Split(frame, "\n")
 	if len(lines) != 30 {
 		t.Errorf("expected 30 lines, got %d", len(lines))
+	}
+}
+
+func TestHeaderAdaptive(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+
+	// large terminal: full wordmark, no compact brand line
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "████") {
+		t.Error("expected full wordmark at 100x30")
+	}
+	if strings.Contains(frame, "TASKFRAME") {
+		t.Error("compact brand line should not render at 100x30")
+	}
+	if n := len(strings.Split(frame, "\n")); n != 30 {
+		t.Errorf("expected 30 lines, got %d", n)
+	}
+
+	// small terminal: compact one-line brand with the language tag
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 20})
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "TASKFRAME") {
+		t.Error("expected compact brand at 100x20")
+	}
+	if strings.Contains(frame, "████") {
+		t.Error("full wordmark should not render at 100x20")
+	}
+	if !strings.Contains(frame, "EN") {
+		t.Error("expected language tag in the compact header")
+	}
+	if n := len(strings.Split(frame, "\n")); n != 20 {
+		t.Errorf("expected 20 lines, got %d", n)
 	}
 }
 
