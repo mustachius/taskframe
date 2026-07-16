@@ -3,35 +3,30 @@
 [![CI](https://github.com/mustachius/taskframe/actions/workflows/ci.yml/badge.svg)](https://github.com/mustachius/taskframe/actions/workflows/ci.yml)
 
 A fast, keyboard-driven task manager for the terminal, inspired by
-[Taskwarrior](https://taskwarrior.org/) but simpler. One core (tasks, projects,
-subtasks, tags, notes, urgency, undo) drives three ways to work: an inline REPL,
-a quick-capture CLI, and a classic two-pane TUI. Built in Go with a pure-Go
-SQLite backend (no CGo), so it runs cleanly on Windows.
+[Taskwarrior](https://taskwarrior.org/) but simpler. You get the same core
+(tasks, projects, subtasks, tags, notes, urgency, undo) in three flavors: an
+inline REPL, a quick-capture CLI, and a classic two-pane TUI. Built in Go with
+a pure-Go SQLite backend (no CGo), so it runs cleanly on Windows.
 
 ![taskframe demo](demo.gif)
 
 ## Features
 
-- **Three interfaces, one database** — inline REPL (default), quick-capture CLI,
-  and a classic Norton Commander-style TUI.
-- **Projects and subtasks** — dotted project hierarchy (`work.api`) and
-  arbitrarily nested subtasks.
-- **Tags, notes, and search** — tag filters (`+tag` / `-tag`), per-task notes,
-  and free-text search.
-- **Urgency sorting** — a weighted Taskwarrior-style score (due date, priority,
-  age, active state, pending subtasks); configurable coefficients.
-- **Contexts** — named default filters you can switch between.
-- **Start/stop** — mark a task in progress; it rises in urgency.
-- **Recurrence** — recurring tasks spawn the next instance on completion.
-- **Undo / redo** — every change is recorded in an activity log and is fully
-  reversible.
-- **Soft delete, export/import** — deletes are recoverable until `purge`; full
-  JSON backup and restore.
-- **Sync across machines** — `taskframe sync` moves your database between
-  machines through a private git repo (last-writer-wins, with an automatic
-  backup before every overwrite).
-- **Ten themes** and an **English / Portuguese** interface, both switchable at
-  runtime and persisted.
+- Three interfaces over the same database: an inline REPL (the default), a
+  quick-capture CLI, and a classic Norton Commander-style TUI.
+- Projects form a dotted hierarchy (`work.api`); subtasks nest to any depth.
+- Tag filters (`+tag` / `-tag`), per-task notes, and free-text search.
+- Urgency sorting: a weighted Taskwarrior-style score over due date, priority,
+  age, active state, and pending subtasks, with configurable coefficients.
+- Contexts (saved default filters), start/stop to mark a task in progress, and
+  recurring tasks that spawn the next instance when completed.
+- Undo and redo for every change, backed by a per-task activity log. Deletes
+  are soft until `purge`.
+- JSON export/import for backups, and `taskframe sync` to carry the database
+  between machines through a private git repo (last-writer-wins, with an
+  automatic backup before every overwrite).
+- Ten themes and an English/Portuguese interface, both switchable at runtime
+  and persisted.
 
 ## Installation
 
@@ -175,7 +170,7 @@ both work regardless of the interface language).
 
 Ten themes, switchable with `/theme` in the REPL or `t` in the classic TUI (or
 `/theme <name>`); the choice is saved. They restyle the text, the interface, and
-the markdown rendering — without painting a line background, so your terminal
+the markdown rendering, but never paint a line background, so your terminal
 shows through:
 
 - **dark** (default) — subtle grays, adapts to light/dark terminals
@@ -214,8 +209,8 @@ priority, the `+next` tag, age, active state, and pending subtasks.
 
 ## Sync across machines
 
-Use the same tasks on several machines through a **private git repo** — no
-manual database copying. Set it up once per machine:
+Use the same tasks on several machines through a private git repo, instead of
+copying the database around by hand. Set it up once per machine:
 
 ```sh
 taskframe sync init https://github.com/you/taskframe-data.git
@@ -232,13 +227,14 @@ taskframe sync pull     # or force a direction (last-writer-wins tie-breaker)
 taskframe sync push
 ```
 
-Sync is **last-writer-wins** — it does not merge concurrent edits (the data
-model has no global ids to reconcile), so it suits sequential use (add at home,
-review at work). It never destroys silently: the local database is backed up
-before every overwrite, and a bare `sync` aborts if both sides changed since the
-last sync, asking you to `pull` or `push` explicitly. Authentication is your own
-git's (credential manager or SSH key) — TaskFrame stores no credentials.
-Requires `git` on `PATH`.
+Sync is **last-writer-wins**: it does not merge concurrent edits (the data
+model has no global ids to reconcile), so it suits sequential use, like adding
+at home and reviewing at work. Nothing is overwritten silently. The local
+database is backed up first (the five newest backups are kept next to it), and
+a bare `sync` aborts if both sides changed since the last sync, asking you to
+`pull` or `push` explicitly. Authentication is handled by your own git
+(credential manager or SSH key); TaskFrame stores no credentials, so don't
+embed a token in the sync URL. Requires `git` on `PATH`.
 
 ## Development
 
