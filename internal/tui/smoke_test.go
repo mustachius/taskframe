@@ -470,6 +470,69 @@ func TestNextReportLimit(t *testing.T) {
 	_ = m
 }
 
+func TestContextToggleAndFilter(t *testing.T) {
+	a, s := newTestApp(t)
+	s.DefineContext("work", "pro:trabalho")
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	m = driveSidebarTo(t, m, a, "Tasks: @work")
+	m = drive(t, m, key("enter"))
+	if v, _ := s.ActiveContext(); v != "work" {
+		t.Fatalf("enter on a context row should activate it, got %q", v)
+	}
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "● @work") {
+		t.Error("active context should carry the ● marker in the sidebar")
+	}
+	if strings.Contains(frame, "Comprar leite") {
+		t.Errorf("context pro:trabalho should hide casa tasks, frame:\n%s", frame)
+	}
+	if !strings.Contains(frame, "Revisar relatório") {
+		t.Error("context pro:trabalho should keep trabalho tasks")
+	}
+
+	// contexts are settings: undo reverts task ops, never the context
+	m = drive(t, m, key("u"))
+	if v, _ := s.ActiveContext(); v != "work" {
+		t.Error("undo must not clear the active context")
+	}
+
+	m = drive(t, m, key("enter")) // toggle off
+	if v, _ := s.ActiveContext(); v != "" {
+		t.Fatal("enter on the active context should clear it")
+	}
+	frame = stripANSI(m.View())
+	if strings.Contains(frame, "● @work") {
+		t.Error("marker should disappear after clearing the context")
+	}
+}
+
+func TestContextSidebarMerge(t *testing.T) {
+	a, s := newTestApp(t)
+	s.DefineContext("work", "pro:trabalho")
+	s.SetActiveContext("work")
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	frame := stripANSI(m.View())
+	if strings.Contains(frame, "Regar plantas") {
+		t.Error("active context should filter the default view")
+	}
+
+	// selecting a project: the sidebar scalar wins over the context's project
+	m = driveSidebarTo(t, m, a, "Tasks: casa")
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "Regar plantas") {
+		t.Errorf("sidebar project should override the context project, frame:\n%s", frame)
+	}
+	if strings.Contains(frame, "Revisar relatório") {
+		t.Error("trabalho tasks should not show under project casa")
+	}
+}
+
 func TestReadModalOpens(t *testing.T) {
 	a, _ := newTestApp(t)
 	var m tea.Model = a

@@ -4,19 +4,27 @@ import "github.com/mustachius/taskframe/internal/task"
 
 type tasksLoadedMsg struct{ tasks []*task.Task }
 
+// ctxEntry is one defined context and how many tasks its filter matches.
+type ctxEntry struct {
+	name  string
+	count int
+}
+
 // sidebarData carries everything the sidebar needs in one message.
 type sidebarData struct {
-	counts  map[string]int // pending per exact project string
-	tags    map[string]int // pending per tag
-	total   int
-	today   int
-	overdue int
-	week    int
-	active  int
-	next    int
-	waiting int
-	done    int
-	del     int
+	counts    map[string]int // pending per exact project string
+	tags      map[string]int // pending per tag
+	total     int
+	today     int
+	overdue   int
+	week      int
+	active    int
+	next      int
+	waiting   int
+	done      int
+	del       int
+	contexts  []ctxEntry // sorted by name
+	activeCtx string     // active context name ("" = none)
 }
 
 type projectsLoadedMsg struct{ data sidebarData }
