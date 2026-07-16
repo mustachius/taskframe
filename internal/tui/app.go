@@ -121,13 +121,13 @@ func (a *App) loadTasksCmd() tea.Cmd {
 
 func (a *App) loadProjectsCmd() tea.Cmd {
 	return func() tea.Msg {
-		counts, err := a.store.ProjectCounts()
+		counts, err := a.store.ProjectStatusCounts()
 		if err != nil {
 			return errMsg{err}
 		}
 		total := 0
-		for _, n := range counts {
-			total += n
+		for _, c := range counts {
+			total += c.Pending
 		}
 		tags, err := a.store.AllTags()
 		if err != nil {

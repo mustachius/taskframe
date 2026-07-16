@@ -470,6 +470,29 @@ func TestNextReportLimit(t *testing.T) {
 	_ = m
 }
 
+func TestProjectProgressBar(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	// no completed tasks yet: bars render fully empty
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "░░░░░░") {
+		t.Errorf("expected an empty progress bar on project rows, frame:\n%s", frame)
+	}
+
+	m = drive(t, m, key("d")) // complete "Comprar leite" (casa.mercado)
+	frame = stripANSI(m.View())
+	// casa: 1 pending / 1 done → half-filled; casa.mercado: 0/1 → full
+	if !strings.Contains(frame, "███░░░") {
+		t.Errorf("expected a half-filled bar for casa, frame:\n%s", frame)
+	}
+	if !strings.Contains(frame, "██████") {
+		t.Errorf("expected a full bar for casa.mercado, frame:\n%s", frame)
+	}
+}
+
 func TestContextToggleAndFilter(t *testing.T) {
 	a, s := newTestApp(t)
 	s.DefineContext("work", "pro:trabalho")
