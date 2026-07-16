@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mustachius/taskframe/internal/cli"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
@@ -83,6 +85,10 @@ type model struct {
 	editTitle  string
 	editInput  textinput.Model
 	editReturn mode
+
+	// async git sync (/sync): spinner shown under the prompt while it runs
+	syncing bool
+	spin    spinner.Model
 
 	pendingEcho string
 
@@ -159,6 +165,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openNoteMsg:
 		// note <id> from the prompt: capture returns to the prompt.
 		return m.beginNote(msg.id, msg.title, modePrompt), m.echoOnly()
+
+	case spinner.TickMsg:
+		if !m.syncing {
+			return m, nil // sync ended: drop the tick, no re-tick → no leak
+		}
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
+
+	case syncDoneMsg:
+		m.syncing = false
+		lines := make([]string, 0, len(msg.lines)+1)
+		for _, l := range msg.lines {
+			lines = append(lines, m.th.Text.Render(l))
+		}
+		if msg.err != nil {
+			lines = append(lines, m.th.StatusErr.Render("x "+msg.err.Error()))
+		}
+		// a pull may have replaced the whole DB — refresh completion caches
+		return m, tea.Batch(m.emit(lines...), m.loadCachesCmd())
 
 	case detailLoadedMsg:
 		m.detail = msg.t
@@ -313,6 +339,27 @@ func (m model) startAddNote(t *task.Task, ret mode) model {
 	return m.beginNote(t.ID, t.Title, ret)
 }
 
+// startSync kicks off an async git sync (cli.RunSync) with a spinner under the
+// prompt. One run at a time; the prompt stays responsive while git works.
+func (m model) startSync(args []string) (tea.Model, tea.Cmd) {
+	if m.syncing {
+		return m, m.emit(m.th.Dim.Render(m.lang.T("repl.sync.busy")))
+	}
+	m.syncing = true
+	// a fresh spinner per run rotates its internal ID, so stale ticks from a
+	// previous run are rejected by spinner.Update's own ID check
+	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(m.th.Accent))
+	s, lang := m.store, m.lang
+	sync := func() tea.Msg {
+		lines, err := cli.RunSync(s, args, lang)
+		return syncDoneMsg{lines: lines, err: err}
+	}
+	// ORDER MATTERS for the test harness: exec() runs Batch children in slice
+	// order, and a Tick before the sync cmd would re-tick forever while
+	// m.syncing is still true.
+	return m, tea.Batch(m.echoOnly(), sync, m.spin.Tick)
+}
+
 // startEdit opens the inline token editor for t from an overlay (list or
 // detail), returning there when done. Mirrors startAddNote.
 func (m model) startEdit(t *task.Task, ret mode) model {
@@ -457,6 +504,9 @@ func (m model) viewPrompt() string {
 	w := min(m.w, 100)
 	box := ui.DrawBoxChars(m.th, roundBox(m.ascii), "",
 		[]string{" " + m.input.View()}, w, 3, true)
+	if m.syncing {
+		box += "\n  " + m.spin.View() + " " + m.th.Dim.Render(m.lang.T("repl.sync.running"))
+	}
 	if m.compHint != "" {
 		box += "\n" + m.th.Dim.Render("  "+ui.TruncRunes(m.compHint, w-2))
 	}

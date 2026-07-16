@@ -27,7 +27,7 @@ const (
 // cmdSync is the CLI entry point; runSync holds the UI-agnostic core so the
 // REPL (later) and tests can reuse it without capturing stdout.
 func cmdSync(s *store.Store, args []string, lang i18n.Lang) error {
-	lines, err := runSync(s, args, lang)
+	lines, err := RunSync(s, args, lang)
 	for _, l := range lines {
 		fmt.Println(l)
 	}
@@ -37,7 +37,7 @@ func cmdSync(s *store.Store, args []string, lang i18n.Lang) error {
 // runSync dispatches the sync sub-verbs and returns the lines to print. Network
 // git errors stay English; recognised ones (auth, non-fast-forward) map to
 // localized guidance in mapGitErr.
-func runSync(s *store.Store, args []string, lang i18n.Lang) ([]string, error) {
+func RunSync(s *store.Store, args []string, lang i18n.Lang) ([]string, error) {
 	if !gitsync.Available() {
 		return nil, errors.New(lang.T("cli.sync.gitMissing"))
 	}
