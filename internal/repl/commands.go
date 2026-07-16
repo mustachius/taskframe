@@ -51,6 +51,12 @@ type detailLoadedMsg struct {
 
 type errMsg struct{ err error }
 
+// syncDoneMsg carries the result of an async /sync run (cli.RunSync).
+type syncDoneMsg struct {
+	lines []string
+	err   error
+}
+
 // loadCachesCmd refreshes the project/tag completion caches.
 func (m model) loadCachesCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -170,6 +176,8 @@ func (m model) dispatchSlash(line string) (tea.Model, tea.Cmd) {
 			persist(m.store, "lang", string(next)),
 			m.emit(m.th.Accent.Render(m.lang.Tf("status.lang", string(next)))),
 		)
+	case "/sync":
+		return m.startSync(fields[1:]) // sync needs the whole tail (init <url>, flags)
 	case "/classic":
 		return m, m.emit(m.th.Dim.Render(m.lang.T("classic.run")) + m.th.Text.Render("taskframe classic") +
 			m.th.Dim.Render(m.lang.T("classic.hint")))
@@ -699,7 +707,7 @@ func helpLines(th ui.Theme, lang i18n.Lang) []string {
 		"help.add", "help.sub", "help.list", "help.reports", "help.done",
 		"help.startstop", "help.del", "help.note", "help.edit", "help.move",
 		"help.read", "help.context", "help.filters", "help.undoredo", "help.theme",
-		"help.sort", "help.lang", "help.clear", "help.quit",
+		"help.sort", "help.lang", "help.sync", "help.clear", "help.quit",
 	}
 	lines := []string{th.TitleFocus.Render(lang.T("help.title"))}
 	for _, k := range keys {

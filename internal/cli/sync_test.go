@@ -62,7 +62,7 @@ func has(titles []string, want string) bool {
 
 func sync(t *testing.T, s *store.Store, args ...string) []string {
 	t.Helper()
-	lines, err := runSync(s, args, enLang)
+	lines, err := RunSync(s, args, enLang)
 	if err != nil {
 		t.Fatalf("sync %v: %v", args, err)
 	}
@@ -125,7 +125,7 @@ func TestSyncTwoMachinesLWW(t *testing.T) {
 	add(t, a, "from A2")
 	add(t, b, "from B2")
 	sync(t, b) // B publishes B2
-	if _, err := runSync(a, nil, enLang); err == nil {
+	if _, err := RunSync(a, nil, enLang); err == nil {
 		t.Fatal("expected divergence error on bare sync")
 	}
 	// Explicit tie-break: A pulls, adopting B (A2 is dropped but backed up).
@@ -153,10 +153,10 @@ func TestSyncNotConfigured(t *testing.T) {
 		t.Skip("git not in PATH")
 	}
 	s := machine(t, t.TempDir(), "solo")
-	if _, err := runSync(s, nil, enLang); err == nil {
+	if _, err := RunSync(s, nil, enLang); err == nil {
 		t.Fatal("expected error when sync is not configured")
 	}
-	if _, err := runSync(s, []string{"status"}, enLang); err == nil {
+	if _, err := RunSync(s, []string{"status"}, enLang); err == nil {
 		t.Fatal("expected error on status when not configured")
 	}
 }
@@ -170,7 +170,7 @@ func TestSyncInMemoryRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if _, err := runSync(s, []string{"status"}, enLang); err == nil {
+	if _, err := RunSync(s, []string{"status"}, enLang); err == nil {
 		t.Fatal("expected sync to refuse an in-memory database")
 	}
 }

@@ -67,6 +67,8 @@ var catalog = map[string][2]string{
 	"status.lang":         {"  language: %s", "  idioma: %s"},
 	"classic.run":         {"  run: ", "  rode: "},
 	"classic.hint":        {"  (two-pane interface)", "  (interface de dois painéis)"},
+	"repl.sync.running":   {"syncing…", "sincronizando…"},
+	"repl.sync.busy":      {"  (sync already running)", "  (sync já em andamento)"},
 
 	// --- context (repl) ---
 	"ctx.noneActive":   {"  no active context  (context <name> activates · context list shows)", "  nenhum contexto ativo  (context <nome> ativa · context list mostra)"},
@@ -161,6 +163,8 @@ var catalog = map[string][2]string{
 	"help.sort.v":      {"sort: urgency, due, created", "ordenação: urgency, due, created"},
 	"help.lang.k":      {"/lang [en|pt-br]", "/lang [en|pt-br]"},
 	"help.lang.v":      {"switch language", "troca o idioma"},
+	"help.sync.k":      {"/sync [init <url>|status|pull|push]", "/sync [init <url>|status|pull|push]"},
+	"help.sync.v":      {"git sync (same as taskframe sync)", "sincroniza via git (igual a taskframe sync)"},
 	"help.clear.k":     {"/clear", "/clear"},
 	"help.clear.v":     {"clear the screen", "limpa a tela"},
 	"help.quit.k":      {"/help · /quit", "/help · /quit"},

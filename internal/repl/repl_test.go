@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	exec2 "os/exec"
+
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
@@ -928,5 +931,78 @@ func TestNoteMultilineBody(t *testing.T) {
 	full := stripANSI(strings.Join(m.(model).detailLines, "\n"))
 	if !strings.Contains(full, "linha um") || !strings.Contains(full, "linha dois") {
 		t.Fatalf("multi-line note not visible in detail:\n%s", full)
+	}
+}
+
+func TestSyncOnMemoryStore(t *testing.T) {
+	tm, _ := newTestModel(t)
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+
+	m = run(t, m, "/sync")
+	mm := m.(model)
+	if mm.syncing {
+		t.Fatal("syncing flag should be cleared after the run completes")
+	}
+	if txt := transcriptText(mm); !strings.Contains(txt, "file-backed database") &&
+		!strings.Contains(txt, "git is not installed") {
+		t.Fatalf("expected the file-backed-DB (or git-missing) error in the transcript:\n%s", txt)
+	}
+}
+
+func TestSyncBusyGuard(t *testing.T) {
+	tm, _ := newTestModel(t)
+	tm.syncing = true
+	var m tea.Model = tm
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	m = run(t, m, "/sync")
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "already running") {
+		t.Fatalf("expected the busy guard message, transcript:\n%s", txt)
+	}
+}
+
+// TestSyncSpinnerLifecycle uses raw Update calls: exec()ing a live spinner tick
+// would block on the real tea.Tick delay and re-tick forever.
+func TestSyncSpinnerLifecycle(t *testing.T) {
+	tm, _ := newTestModel(t)
+
+	// not syncing: ticks are dropped without a re-tick
+	m2, cmd := tm.Update(spinner.TickMsg{})
+	if cmd != nil {
+		t.Fatal("tick with syncing=false must not re-tick")
+	}
+	tm = m2.(model)
+
+	// syncing: the view shows the spinner line and ticks advance it
+	tm.syncing = true
+	tm.spin = spinner.New()
+	if v := stripANSI(tm.View()); !strings.Contains(v, "syncing") {
+		t.Errorf("view should show the syncing line, got:\n%s", v)
+	}
+	_, cmd = tm.Update(tm.spin.Tick())
+	if cmd == nil {
+		t.Fatal("tick while syncing should schedule the next tick")
+	}
+}
+
+func TestSyncNotConfigured(t *testing.T) {
+	if _, err := exec2.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+	dir := t.TempDir()
+	s, err := store.Open(filepath.Join(dir, "tf.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+
+	tm := newModel(s, Options{})
+	var m tea.Model = tm
+	m = exec(t, m, tm.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 90, Height: 30})
+	m = run(t, m, "/sync status")
+	if txt := transcriptText(m.(model)); !strings.Contains(txt, "not configured") {
+		t.Fatalf("expected the not-configured message, transcript:\n%s", txt)
 	}
 }

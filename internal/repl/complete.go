@@ -10,8 +10,9 @@ import (
 func ThemeNamesList() []string { return ui.ThemeNames }
 
 var verbs = []string{"add", "list", "done", "del", "note", "edit", "move", "undo", "purge"}
-var slashCmds = []string{"/help", "/theme", "/sort", "/clear", "/quit", "/classic"}
+var slashCmds = []string{"/help", "/theme", "/sort", "/lang", "/sync", "/clear", "/quit", "/classic"}
 var sortModes = []string{"urgency", "due", "created"}
+var syncVerbs = []string{"init", "status", "pull", "push"}
 
 // complete performs Tab-completion on the current input token, replacing it or
 // showing candidates in the transient hint line.
@@ -51,6 +52,8 @@ func (m *model) complete() {
 		cands = filterPrefix(ThemeNamesList(), cur)
 	case prev == "/sort":
 		cands = filterPrefix(sortModes, cur)
+	case prev == "/sync":
+		cands = filterPrefix(syncVerbs, cur)
 	default:
 		m.compHint = ""
 		return
