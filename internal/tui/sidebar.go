@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
@@ -42,7 +41,8 @@ type sbItem struct {
 	active bool // sbContext: this is the active context
 }
 
-// Sidebar is the left panel: project tree, virtual filters and tags.
+// Sidebar is the left panel: project tree, tags, contexts and the archive
+// (the virtual report filters moved to the tab band).
 type Sidebar struct {
 	items  []sbItem
 	cursor int
@@ -82,16 +82,6 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 			depth: len(parts) - 1, count: nodes[p].Pending, done: nodes[p].Done,
 		})
 	}
-
-	s.items = append(s.items,
-		sbItem{kind: sbSeparator, label: lang.T("sb.sec.filters")},
-		sbItem{kind: sbToday, label: lang.T("sb.today"), count: d.today},
-		sbItem{kind: sbOverdue, label: lang.T("sb.overdue"), count: d.overdue},
-		sbItem{kind: sbWeek, label: lang.T("sb.week"), count: d.week},
-		sbItem{kind: sbActive, label: lang.T("sb.active"), count: d.active},
-		sbItem{kind: sbNext, label: lang.T("sb.next"), count: d.next},
-		sbItem{kind: sbWaiting, label: lang.T("sb.waiting"), count: d.waiting},
-	)
 
 	if len(d.tags) > 0 {
 		s.items = append(s.items, sbItem{kind: sbSeparator, label: lang.T("sb.sec.tags")})
@@ -158,33 +148,16 @@ func (s *Sidebar) Move(delta int) {
 	}
 }
 
-// report returns the base filter of a named report (shared source of truth).
-func report(name string, now time.Time) task.Filter {
-	r, _ := task.LookupReport(name)
-	return r.Build(now)
-}
-
-// Filter returns the task filter for the selected item.
+// Filter returns the task filter for the selected item. The report filters
+// live on the tab band now — the sidebar only narrows by project, tag or
+// archive status.
 func (s *Sidebar) Filter() task.Filter {
 	if s.cursor >= len(s.items) {
 		return task.Filter{}
 	}
-	now := time.Now()
 	switch it := s.items[s.cursor]; it.kind {
 	case sbProject:
 		return task.Filter{Project: it.value}
-	case sbToday:
-		return report("today", now)
-	case sbOverdue:
-		return report("overdue", now)
-	case sbWeek:
-		return report("week", now)
-	case sbActive:
-		return report("active", now)
-	case sbNext:
-		return report("next", now)
-	case sbWaiting:
-		return report("waiting", now)
 	case sbTag:
 		return task.Filter{Tags: []string{it.value}}
 	case sbDone:
@@ -193,7 +166,7 @@ func (s *Sidebar) Filter() task.Filter {
 		return task.Filter{Status: task.StatusDeleted}
 	default:
 		// sbContext rows included: resting on one filters nothing extra —
-		// activation is a deliberate Enter (applySidebar runs on every move,
+		// activation is a deliberate Enter (applyFilters runs on every move,
 		// so Filter() must stay free of side effects)
 		return task.Filter{}
 	}
@@ -207,18 +180,6 @@ func (s *Sidebar) Title(lang i18n.Lang) string {
 	switch it := s.items[s.cursor]; it.kind {
 	case sbProject:
 		return lang.T("sb.title.of") + it.value
-	case sbToday:
-		return lang.T("sb.today")
-	case sbOverdue:
-		return lang.T("sb.overdue")
-	case sbWeek:
-		return lang.T("sb.title.week")
-	case sbActive:
-		return lang.T("sb.active")
-	case sbNext:
-		return lang.T("sb.next")
-	case sbWaiting:
-		return lang.T("sb.waiting")
 	case sbTag:
 		return lang.T("sb.title.of") + "+" + it.value
 	case sbContext:
@@ -230,18 +191,6 @@ func (s *Sidebar) Title(lang i18n.Lang) string {
 	default:
 		return lang.T("sb.title.tasks")
 	}
-}
-
-// Limit returns the row cap of the selected report view (0 = unlimited).
-// Reports carry their own display limit (e.g. next = 15); store.List does not
-// apply it, so the list panel caps its rows instead.
-func (s *Sidebar) Limit() int {
-	if s.cursor < len(s.items) && s.items[s.cursor].kind == sbNext {
-		if r, ok := task.LookupReport("next"); ok {
-			return r.Limit
-		}
-	}
-	return 0
 }
 
 // CurrentProject returns the selected project path ("" when not on one).

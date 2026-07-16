@@ -374,6 +374,7 @@ tokens (add e list):
 
 	// --- TUI sidebar ---
 	"sb.all":          {"(all)", "(todas)"},
+	"tab.all":         {"All", "Todas"},
 	"sb.today":        {"Today", "Hoje"},
 	"sb.overdue":      {"Overdue", "Atrasadas"},
 	"sb.week":         {"Week", "Semana"},

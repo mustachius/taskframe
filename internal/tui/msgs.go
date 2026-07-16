@@ -13,17 +13,14 @@ type ctxEntry struct {
 	count int
 }
 
-// sidebarData carries everything the sidebar needs in one message.
+// sidebarData carries everything the sidebar (and the tab band) needs in one
+// message. The per-report counts died with the sidebar's filters section;
+// overdue survives because the Overdue tab label lights up on it.
 type sidebarData struct {
 	counts    map[string]store.ProjectCount // pending/done per exact project string
 	tags      map[string]int                // pending per tag
 	total     int
-	today     int
 	overdue   int
-	week      int
-	active    int
-	next      int
-	waiting   int
 	done      int
 	del       int
 	contexts  []ctxEntry // sorted by name

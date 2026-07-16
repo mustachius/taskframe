@@ -21,6 +21,13 @@ func (a *App) headerHeight() int {
 	return 1
 }
 
+// contentTop is the Y of the first panel content row: header + tab band +
+// panel top border. Render, hit-testing and the tests all go through it so
+// the geometry can never drift apart.
+func (a *App) contentTop() int {
+	return a.headerHeight() + tabsHeight + 1
+}
+
 // modalScroller is implemented by modals that can wheel-scroll (Detail, Read).
 type modalScroller interface{ scrollBy(delta int) tea.Cmd }
 
@@ -55,7 +62,7 @@ func (a *App) handleMouse(m tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.X < sidebarWidth {
 			a.sidebar.Move(delta)
-			return a.applySidebar()
+			return a.applyFilters()
 		}
 		a.list.Move(delta * wheelStep)
 		return a, nil
@@ -65,17 +72,29 @@ func (a *App) handleMouse(m tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	hdr := a.headerHeight()
-	panelH := a.h - 2 - hdr // same formula as View()
-	row := m.Y - hdr - 1    // content row inside the panel (border excluded)
+
+	// tab band: clicking a tab activates it (same spans the renderer used)
+	if m.Y >= hdr && m.Y < hdr+tabsHeight {
+		spans, _, _ := tabLayout(tabLabels(a.lang), a.activeTab, a.w)
+		for _, sp := range spans {
+			if m.X >= sp.x0 && m.X < sp.x1 {
+				return a.setTab(sp.idx)
+			}
+		}
+		return a, nil
+	}
+
+	panelH := a.h - 2 - hdr - tabsHeight // same formula as View()
+	row := m.Y - a.contentTop()          // content row inside the panel
 	if row < 0 || row > panelH-3 {
-		return a, nil // header, borders, status or fkey bar
+		return a, nil // header, tabs, borders, status or fkey bar
 	}
 
 	if m.X < sidebarWidth {
 		if a.sidebar.SetCursor(a.sidebar.offset + row) {
 			a.focus = focusSidebar
 			// clicking a context row only selects it — Enter stays the toggle
-			return a.applySidebar()
+			return a.applyFilters()
 		}
 		return a, nil // separator/section header or blank area
 	}

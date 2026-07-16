@@ -54,9 +54,12 @@ type App struct {
 	modal   Modal
 
 	filter    task.Filter
+	activeTab int    // index into tabDefs
 	activeCtx string // name of the active context ("" = none)
 	search    textinput.Model
 	searching bool
+
+	overdueCount int // tints the Overdue tab label
 
 	status    string
 	statusErr bool
@@ -146,10 +149,8 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
-		// counts mirror what each virtual filter shows when selected
-		// (pending + waiting hidden), so numbers always match the list
-		eodToday := task.EndOfDay(now)
-		eodWeek := task.EndOfDay(now.AddDate(0, 0, 7))
+		// counts mirror what each row shows when selected (pending + waiting
+		// hidden), so numbers always match the list
 		count := func(f task.Filter) int {
 			if f.Status == "" && !f.WaitingOnly { // same rule as loadTasksCmd
 				f.HideWaiting = true
@@ -160,9 +161,9 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 			}
 			return len(ts)
 		}
-		// virtual-filter counts fold the active context in, like the list does
-		// when they are selected; project and tag counts stay global (they
-		// answer "how many exist", not "how many under this context")
+		// context-aware counts fold the active context in, like the list does;
+		// project and tag counts stay global (they answer "how many exist",
+		// not "how many under this context")
 		countCtx := func(f task.Filter) int { return count(cf.Merge(f)) }
 		var ctxs []ctxEntry
 		names := make([]string, 0, len(ctxDefs))
@@ -178,20 +179,11 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 			}
 			ctxs = append(ctxs, ctxEntry{name: n, count: c})
 		}
-		next := countCtx(task.Filter{})
-		if r, ok := task.LookupReport("next"); ok && r.Limit > 0 && next > r.Limit {
-			next = r.Limit
-		}
 		return projectsLoadedMsg{data: sidebarData{
 			counts:    counts,
 			tags:      tags,
 			total:     total,
-			today:     countCtx(task.Filter{DueBefore: &eodToday}),
 			overdue:   countCtx(task.Filter{DueBefore: &now}),
-			week:      countCtx(task.Filter{DueBefore: &eodWeek}),
-			active:    countCtx(task.Filter{ActiveOnly: true}),
-			next:      next,
-			waiting:   countCtx(task.Filter{WaitingOnly: true}),
 			done:      countCtx(task.Filter{Status: task.StatusDone}),
 			del:       countCtx(task.Filter{Status: task.StatusDeleted}),
 			contexts:  ctxs,
@@ -267,6 +259,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case projectsLoadedMsg:
 		a.sidebar.SetCounts(a.lang, msg.data)
 		a.activeCtx = msg.data.activeCtx
+		a.overdueCount = msg.data.overdue
 		return a, nil
 
 	case detailLoadedMsg:
@@ -395,7 +388,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if a.focus == focusSidebar {
 			a.sidebar.Move(-1)
-			return a.applySidebar()
+			return a.applyFilters()
 		}
 		a.list.Move(-1)
 		return a, nil
@@ -403,9 +396,19 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		if a.focus == focusSidebar {
 			a.sidebar.Move(1)
-			return a.applySidebar()
+			return a.applyFilters()
 		}
 		a.list.Move(1)
+		return a, nil
+
+	case "[":
+		return a.setTab(a.activeTab - 1)
+	case "]":
+		return a.setTab(a.activeTab + 1)
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		if i := int(key[0] - '1'); i < len(tabDefs()) {
+			return a.setTab(i)
+		}
 		return a, nil
 
 	case "pgup":
@@ -564,11 +567,14 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) applySidebar() (tea.Model, tea.Cmd) {
-	f := a.sidebar.Filter()
+// applyFilters recomputes the list filter: active tab report ⊕ sidebar
+// selection. Sidebar scalars win, tags union — the same Merge semantics the
+// active context gets in loadTasksCmd (context < tab < sidebar).
+func (a *App) applyFilters() (tea.Model, tea.Cmd) {
+	f := a.tabFilter(time.Now()).Merge(a.sidebar.Filter())
 	f.Text = a.filter.Text
 	a.filter = f
-	a.list.SetLimit(a.sidebar.Limit())
+	a.list.SetLimit(a.tabLimit())
 	return a, a.loadTasksCmd()
 }
 
@@ -650,28 +656,44 @@ func (a *App) View() string {
 		return a.lang.T("app.windowSmall")
 	}
 
-	// the header shrinks the panel area; the frame always spans exactly a.h rows
+	// the header and the tab band shrink the panel area; the frame always
+	// spans exactly a.h rows
 	header := a.renderHeader()
 	hdr := strings.Join(header, "\n") + "\n"
-	panelH := a.h - 2 - len(header)
+	tabs := strings.Join(a.renderTabBand(), "\n") + "\n"
+	panelH := a.h - 2 - len(header) - tabsHeight
 	listW := a.w - sidebarWidth
 
 	if a.modal != nil {
 		content := a.modal.View(a.th, a.w, panelH)
 		bg := lipglossPlace(a.th, content, a.w, panelH)
-		return hdr + bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
+		return hdr + tabs + bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
 	}
 
 	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, panelH-2, a.focus == focusSidebar)
 	listLines := a.list.Lines(a.th, a.lang, listW-2, panelH-2, a.focus == focusList)
 
 	left := drawBox(a.th, a.lang.T("panel.projects"), sbLines, sidebarWidth, panelH, a.focus == focusSidebar)
-	right := drawBox(a.th, a.sidebar.Title(a.lang), listLines, listW, panelH, a.focus == focusList)
+	right := drawBox(a.th, a.listTitle(), listLines, listW, panelH, a.focus == focusList)
 
 	// both boxes span exactly panelH rows with width-padded lines, so the
 	// native join inserts no extra padding
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
-	return hdr + panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
+	return hdr + tabs + panels + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
+}
+
+// listTitle combines the active tab and the sidebar selection for the list
+// panel title: "Today", "Tasks: casa", or "Today · Tasks: casa".
+func (a *App) listTitle() string {
+	st := a.sidebar.Title(a.lang)
+	if a.activeTab == 0 {
+		return st
+	}
+	tl := a.lang.T(tabDefs()[a.activeTab].labelKey)
+	if st == a.lang.T("sb.title.tasks") {
+		return tl
+	}
+	return tl + " · " + st
 }
 
 func (a *App) statusLine() string {
