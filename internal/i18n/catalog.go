@@ -435,4 +435,5 @@ tokens (add e list):
 	"app.taskCount":          {" %d task(s)", " %d tarefa(s)"},
 	"app.searchInfo":         {" · search: %q (F7 clears)", " · busca: %q (F7 limpa)"},
 	"app.searchPrompt":       {"Search: ", "Busca: "},
+	"app.lang":               {"language: %s", "idioma: %s"},
 }

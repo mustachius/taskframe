@@ -467,6 +467,20 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return statusMsg(a.lang.Tf("app.theme", next))
 		}
 
+	case "L":
+		// live toggle, mirroring the REPL's /lang: most strings re-localize on
+		// the next render; the search prompt is cached and must be reassigned,
+		// and the statusMsg's reload() rebuilds the cached sidebar labels
+		a.lang = i18n.Next(a.lang)
+		a.search.Prompt = a.lang.T("app.searchPrompt")
+		next := a.lang
+		return a, func() tea.Msg {
+			if err := a.store.SetLanguage(string(next)); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(next.Tf("app.lang", string(next)))
+		}
+
 	case "o":
 		a.sortMode = a.sortMode.Next()
 		a.list.SetSortMode(a.sortMode)
