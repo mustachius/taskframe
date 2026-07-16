@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -375,6 +376,69 @@ func TestVirtualFilters(t *testing.T) {
 	if strings.Contains(frame, "Regar plantas") {
 		t.Error("tag filter should hide untagged tasks")
 	}
+}
+
+func TestStartStopToggle(t *testing.T) {
+	a, s := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	// urgency puts "Comprar leite" under the cursor
+	id := a.list.CursorID()
+	m = drive(t, m, key("S"))
+	got, _ := s.GetTask(id)
+	if got.Start == nil {
+		t.Fatal("S should start the cursor task")
+	}
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "[>]") {
+		t.Error("active task should render the [>] marker")
+	}
+	if !strings.Contains(frame, "started") {
+		t.Error("expected start status message")
+	}
+
+	// the Active virtual filter shows only the started task
+	m = driveSidebarTo(t, m, a, "Active")
+	frame = stripANSI(m.View())
+	if !strings.Contains(frame, "Comprar leite") || strings.Contains(frame, "Regar plantas") {
+		t.Errorf("Active filter should show only the started task, frame:\n%s", frame)
+	}
+
+	// back to the list, S again stops it
+	m = drive(t, m, key("tab"))
+	m = drive(t, m, key("S"))
+	got, _ = s.GetTask(id)
+	if got.Start != nil {
+		t.Fatal("second S should stop the task")
+	}
+}
+
+func TestNextReportLimit(t *testing.T) {
+	a, s := newTestApp(t)
+	for i := 0; i < 20; i++ {
+		s.AddTask(&task.Task{Title: fmt.Sprintf("bulk %02d", i)})
+	}
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 60})
+
+	m = driveSidebarTo(t, m, a, "Next")
+	if got := len(a.list.rows); got != 15 {
+		t.Fatalf("Next view should cap at 15 rows, got %d", got)
+	}
+	// leaving the report lifts the cap (k moves back up to the (all) row)
+	for i := 0; i < 30 && a.sidebar.Title(a.lang) != "Tasks"; i++ {
+		m = drive(t, m, key("k"))
+	}
+	if a.sidebar.Title(a.lang) != "Tasks" {
+		t.Fatal("could not reach the (all) row")
+	}
+	if got := len(a.list.rows); got <= 15 {
+		t.Fatalf("cap should be lifted off the Next view, got %d rows", got)
+	}
+	_ = m
 }
 
 func TestReadModalOpens(t *testing.T) {
