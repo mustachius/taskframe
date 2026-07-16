@@ -112,7 +112,9 @@ reference.
 ### Classic TUI (`taskframe classic`)
 
 A two-pane, full-screen interface: projects and filters on the left, tasks on
-the right. Every function key has a letter alias.
+the right, and the TaskFrame logo pinned at the top (the full gradient wordmark
+on large terminals, a compact brand line on small ones). Every function key has
+a letter alias.
 
 | Key | Action |
 |---|---|
@@ -123,13 +125,18 @@ the right. Every function key has a letter alias.
 | `F4` / `e` · `F5` / `n` | edit · add note |
 | `F6` / `m` | move (project / parent) |
 | `F9` / `d` / `Space` | complete / reopen |
+| `S` | start / stop (mark in progress) |
 | `F8` / `x` | delete (with confirmation) |
 | `F7` / `/` | text search |
-| `o` · `t` · `u` | sort · theme · undo |
+| `o` · `t` · `L` | sort · theme · language |
+| `u` · `U` | undo · redo |
 | `F10` / `q` | quit |
 
-The sidebar shows projects, virtual filters (**Today**, **Overdue**, **Week**,
-**Waiting**), and the tags in use.
+The sidebar shows projects (each with a done/total progress bar), virtual
+filters (**Today**, **Overdue**, **Week**, **Active**, **Next**, **Waiting**),
+the tags in use, and your saved contexts — press `Enter` on a context row to
+activate it (again to clear); the active one is marked and applied to every
+view, like in the REPL and CLI.
 
 ## Tokens and dates
 
