@@ -373,6 +373,8 @@ tokens (add e list):
 	"sb.today":       {"Today", "Hoje"},
 	"sb.overdue":     {"Overdue", "Atrasadas"},
 	"sb.week":        {"Week", "Semana"},
+	"sb.active":      {"Active", "Ativas"},
+	"sb.next":        {"Next", "Próximas"},
 	"sb.waiting":     {"Waiting", "Aguardando"},
 	"sb.done":        {"Completed", "Concluídas"},
 	"sb.deleted":     {"Deleted", "Deletadas"},
@@ -436,4 +438,6 @@ tokens (add e list):
 	"app.searchInfo":         {" · search: %q (F7 clears)", " · busca: %q (F7 limpa)"},
 	"app.searchPrompt":       {"Search: ", "Busca: "},
 	"app.lang":               {"language: %s", "idioma: %s"},
+	"app.taskStarted":        {"task %d started", "tarefa %d iniciada"},
+	"app.taskStopped":        {"task %d stopped", "tarefa %d parada"},
 }

@@ -12,6 +12,8 @@ import (
 
 type sbKind int
 
+// New kinds must be appended, never reordered — itemKey embeds the int value
+// and it keeps the selection stable across reloads.
 const (
 	sbAll sbKind = iota
 	sbProject
@@ -23,6 +25,8 @@ const (
 	sbDone
 	sbDeleted
 	sbSeparator
+	sbActive
+	sbNext
 )
 
 type sbItem struct {
@@ -76,6 +80,8 @@ func (s *Sidebar) SetCounts(lang i18n.Lang, d sidebarData) {
 		sbItem{kind: sbToday, label: lang.T("sb.today"), count: d.today},
 		sbItem{kind: sbOverdue, label: lang.T("sb.overdue"), count: d.overdue},
 		sbItem{kind: sbWeek, label: lang.T("sb.week"), count: d.week},
+		sbItem{kind: sbActive, label: lang.T("sb.active"), count: d.active},
+		sbItem{kind: sbNext, label: lang.T("sb.next"), count: d.next},
 		sbItem{kind: sbWaiting, label: lang.T("sb.waiting"), count: d.waiting},
 	)
 
@@ -155,6 +161,10 @@ func (s *Sidebar) Filter() task.Filter {
 		return report("overdue", now)
 	case sbWeek:
 		return report("week", now)
+	case sbActive:
+		return report("active", now)
+	case sbNext:
+		return report("next", now)
 	case sbWaiting:
 		return report("waiting", now)
 	case sbTag:
@@ -182,6 +192,10 @@ func (s *Sidebar) Title(lang i18n.Lang) string {
 		return lang.T("sb.overdue")
 	case sbWeek:
 		return lang.T("sb.title.week")
+	case sbActive:
+		return lang.T("sb.active")
+	case sbNext:
+		return lang.T("sb.next")
 	case sbWaiting:
 		return lang.T("sb.waiting")
 	case sbTag:
@@ -193,6 +207,18 @@ func (s *Sidebar) Title(lang i18n.Lang) string {
 	default:
 		return lang.T("sb.title.tasks")
 	}
+}
+
+// Limit returns the row cap of the selected report view (0 = unlimited).
+// Reports carry their own display limit (e.g. next = 15); store.List does not
+// apply it, so the list panel caps its rows instead.
+func (s *Sidebar) Limit() int {
+	if s.cursor < len(s.items) && s.items[s.cursor].kind == sbNext {
+		if r, ok := task.LookupReport("next"); ok {
+			return r.Limit
+		}
+	}
+	return 0
 }
 
 // CurrentProject returns the selected project path ("" when not on one).

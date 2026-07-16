@@ -12,6 +12,8 @@ type sidebarData struct {
 	today   int
 	overdue int
 	week    int
+	active  int
+	next    int
 	waiting int
 	done    int
 	del     int

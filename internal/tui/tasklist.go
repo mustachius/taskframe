@@ -24,6 +24,7 @@ type TaskList struct {
 	offset   int
 	expanded map[int64]bool // default true; false = collapsed
 	total    int
+	limit    int // cap visible rows (report display limit); 0 = unlimited
 	sortMode task.SortMode
 }
 
@@ -32,6 +33,15 @@ func NewTaskList() TaskList {
 }
 
 func (l *TaskList) SetSortMode(m task.SortMode) { l.sortMode = m }
+
+// SetLimit caps the rendered rows (0 = unlimited) and rebuilds.
+func (l *TaskList) SetLimit(n int) {
+	if l.limit == n {
+		return
+	}
+	l.limit = n
+	l.rebuild()
+}
 
 func (l *TaskList) SetTasks(tasks []*task.Task) {
 	prev := l.CursorID()
@@ -52,6 +62,9 @@ func (l *TaskList) rebuild() {
 	var walk func(ts []*task.Task, depth int)
 	walk = func(ts []*task.Task, depth int) {
 		for _, t := range ts {
+			if l.limit > 0 && len(l.rows) >= l.limit {
+				return
+			}
 			l.rows = append(l.rows, listRow{t, depth, len(t.Children) > 0})
 			if len(t.Children) > 0 && l.isExpanded(t.ID) {
 				walk(t.Children, depth+1)

@@ -140,6 +140,10 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 			}
 			return len(ts)
 		}
+		next := count(task.Filter{})
+		if r, ok := task.LookupReport("next"); ok && r.Limit > 0 && next > r.Limit {
+			next = r.Limit
+		}
 		return projectsLoadedMsg{data: sidebarData{
 			counts:  counts,
 			tags:    tags,
@@ -147,6 +151,8 @@ func (a *App) loadProjectsCmd() tea.Cmd {
 			today:   count(task.Filter{DueBefore: &eodToday}),
 			overdue: count(task.Filter{DueBefore: &now}),
 			week:    count(task.Filter{DueBefore: &eodWeek}),
+			active:  count(task.Filter{ActiveOnly: true}),
+			next:    next,
 			waiting: count(task.Filter{WaitingOnly: true}),
 			done:    count(task.Filter{Status: task.StatusDone}),
 			del:     count(task.Filter{Status: task.StatusDeleted}),
@@ -435,6 +441,9 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "f9", "d", " ":
 		return a.toggleDone()
 
+	case "S":
+		return a.toggleStart()
+
 	case "f8", "x", "delete":
 		if t := a.list.CursorTask(); t != nil {
 			a.pendingDelete = t.ID
@@ -503,6 +512,7 @@ func (a *App) applySidebar() (tea.Model, tea.Cmd) {
 	f := a.sidebar.Filter()
 	f.Text = a.filter.Text
 	a.filter = f
+	a.list.SetLimit(a.sidebar.Limit())
 	return a, a.loadTasksCmd()
 }
 
@@ -531,6 +541,27 @@ func (a *App) toggleDone() (tea.Model, tea.Cmd) {
 			return statusMsg(a.lang.Tf("app.taskReopened", id))
 		}
 		return statusMsg(a.lang.T("app.taskDeletedRestore"))
+	}
+}
+
+// toggleStart flips the active (started) state of the task under the cursor.
+func (a *App) toggleStart() (tea.Model, tea.Cmd) {
+	t := a.list.CursorTask()
+	if t == nil || t.Status != task.StatusPending {
+		return a, nil
+	}
+	id, active := t.ID, t.IsActive()
+	return a, func() tea.Msg {
+		if active {
+			if err := a.store.StopTask(id); err != nil {
+				return errMsg{err}
+			}
+			return statusMsg(a.lang.Tf("app.taskStopped", id))
+		}
+		if err := a.store.StartTask(id); err != nil {
+			return errMsg{err}
+		}
+		return statusMsg(a.lang.Tf("app.taskStarted", id))
 	}
 }
 
