@@ -54,6 +54,9 @@ func taskLine(th ui.Theme, r olRow, w int, now time.Time, selected, ascii bool) 
 	if t.Recur != "" {
 		title += " ~"
 	}
+	if t.Status == task.StatusPending && t.IsActive() {
+		title += " ·" + ui.FormatElapsed(now.Sub(*t.Start))
+	}
 
 	head := fmt.Sprintf(" %4d %s %s %s  ", t.ID, mark, pri, due)
 	body := ui.TruncRunes(ui.TreePrefix(r.lastStack, ascii)+title, w-len([]rune(head)))

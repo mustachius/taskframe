@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 // Detail shows a task's fields, subtasks, notes and full activity log.
@@ -91,7 +92,8 @@ func (d *Detail) View(th Theme, w, h int) string {
 		add(" " + label(d.lang.T("lbl.recurrence")) + th.Dim.Render(t.Recur))
 	}
 	if t.Start != nil {
-		add(" " + label(d.lang.T("lbl.started")) + th.Accent.Render(t.Start.Format("02/01/2006 15:04")))
+		add(" " + label(d.lang.T("lbl.started")) +
+			th.Accent.Render(t.Start.Format("02/01/2006 15:04")+" · "+ui.FormatElapsed(now.Sub(*t.Start))))
 	}
 	add(" " + label(d.lang.T("lbl.created")) + val(t.CreatedAt.Format("02/01/2006 15:04")))
 	if t.CompletedAt != nil {

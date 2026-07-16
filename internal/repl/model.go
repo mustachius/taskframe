@@ -161,7 +161,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case detailLoadedMsg:
 		m.detail = msg.t
 		w := min(m.w, 100)
-		m.detailLines = detailBlock(m.th, m.lang, msg.t, msg.parent, msg.children, msg.notes, msg.acts, w-4, m.ascii)
+		m.detailLines = detailBlock(m.th, m.lang, time.Now(), msg.t, msg.parent, msg.children, msg.notes, msg.acts, w-4, m.ascii)
 		h := min(len(m.detailLines), maxOverlayRows)
 		if h < 1 {
 			h = 1
