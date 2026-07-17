@@ -44,16 +44,24 @@ func (hp *Help) View(th Theme, w, h int) string {
 	lines = append(lines, "")
 	bw := 64
 	if w >= 80 {
-		// two columns: the header shrank the modal canvas, and single-column
-		// would overflow it (lipglossPlace clips overflow)
+		// two columns: the header + tab band shrank the modal canvas, and
+		// single-column would overflow it (the overlay clips overflow). The
+		// description widths derive from the final box width — DrawBox pads
+		// short lines but never truncates long ones.
 		bw = 94
+		if bw > w-4 {
+			bw = w - 4
+		}
+		avail := bw - 2 - 1 - 14 - 2 - 14 // inner minus lead pad, labels, gutter
+		dw1 := avail / 2
+		dw2 := avail - dw1
 		half := (len(rows) + 1) / 2
 		for i := 0; i < half; i++ {
 			line := " " + th.TitleFocus.Render(padRowPlain(rows[i][0], 14)) +
-				th.Text.Render(padRowPlain(truncRunes(rows[i][1], 30), 30))
+				th.Text.Render(padRowPlain(truncRunes(rows[i][1], dw1), dw1))
 			if j := i + half; j < len(rows) {
 				line += "  " + th.TitleFocus.Render(padRowPlain(rows[j][0], 14)) +
-					th.Text.Render(truncRunes(rows[j][1], 30))
+					th.Text.Render(truncRunes(rows[j][1], dw2))
 			}
 			lines = append(lines, line)
 		}

@@ -530,6 +530,39 @@ func TestNextReportLimit(t *testing.T) {
 	_ = m
 }
 
+func TestModalDimBackdrop(t *testing.T) {
+	a, _ := newTestApp(t)
+	var m tea.Model = a
+	m = exec(t, m, a.Init())
+	m = drive(t, m, tea.WindowSizeMsg{Width: 100, Height: 36})
+
+	m = drive(t, m, key("x")) // delete confirm over the live list
+	if a.modal == nil {
+		t.Fatal("x should open the confirm modal")
+	}
+	frame := stripANSI(m.View())
+	if !strings.Contains(frame, "Delete") {
+		t.Fatalf("confirm modal should render, frame:\n%s", frame)
+	}
+	if !strings.Contains(frame, "Comprar leite") {
+		t.Error("the live list should stay visible (dimmed) behind the modal")
+	}
+	lines := strings.Split(frame, "\n")
+	if len(lines) != 36 {
+		t.Errorf("expected 36 lines with a modal open, got %d", len(lines))
+	}
+	for i, ln := range lines {
+		if n := len([]rune(ln)); n != 100 {
+			t.Errorf("line %d has width %d, want 100: %q", i, n, ln)
+		}
+	}
+	m = drive(t, m, key("esc"))
+	if a.modal != nil {
+		t.Error("esc should close the confirm modal")
+	}
+	_ = m
+}
+
 func TestChecklistMarks(t *testing.T) {
 	a, _ := newTestApp(t)
 	var m tea.Model = a
@@ -784,6 +817,27 @@ func TestFrameLineWidths(t *testing.T) {
 				t.Errorf("%dx%d: line %d has width %d, want %d: %q",
 					size.Width, size.Height, i, n, size.Width, ln)
 			}
+		}
+	}
+
+	// modal open: the dimmed overlay must keep exact widths too
+	m = drive(t, m, key("?"))
+	for i, ln := range strings.Split(stripANSI(m.View()), "\n") {
+		if n := len([]rune(ln)); n != 80 {
+			t.Errorf("help overlay: line %d has width %d, want 80: %q", i, n, ln)
+		}
+	}
+	m = drive(t, m, key("esc"))
+
+	// charm + ascii combo over the same store
+	ca := newApp(s, Options{ThemeName: "charm", ASCII: true})
+	ca.reduceMotion = true
+	var mc tea.Model = ca
+	mc = exec(t, mc, ca.Init())
+	mc = drive(t, mc, tea.WindowSizeMsg{Width: 80, Height: 20})
+	for i, ln := range strings.Split(stripANSI(mc.View()), "\n") {
+		if n := len([]rune(ln)); n != 80 {
+			t.Errorf("charm/ascii: line %d has width %d, want 80: %q", i, n, ln)
 		}
 	}
 }
