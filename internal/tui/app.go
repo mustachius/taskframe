@@ -665,7 +665,7 @@ func (a *App) View() string {
 	if a.modal != nil {
 		content := a.modal.View(a.th, a.w, contentH+1)
 		bg := lipglossPlace(a.th, content, a.w, contentH+1)
-		return hdr + tabs + bg + "\n" + a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w)
+		return hdr + tabs + bg + "\n" + a.frameTrailer()
 	}
 
 	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, contentH, a.focus == focusSidebar)
@@ -685,8 +685,13 @@ func (a *App) View() string {
 		}
 		b.WriteString(a.joinColumns(sb, li) + "\n")
 	}
-	b.WriteString(a.statusLine() + "\n" + renderFKeyBar(a.th, mainKeys(a.lang), a.w))
+	b.WriteString(a.frameTrailer())
 	return b.String()
+}
+
+// frameTrailer is the last two frame rows: status chips + key hints.
+func (a *App) frameTrailer() string {
+	return a.renderStatusChips() + "\n" + renderHint(a.th, a.lang, a.ascii, a.hintState(), a.w)
 }
 
 // listTitle combines the active tab and the sidebar selection for the list
@@ -723,43 +728,6 @@ func (a *App) joinColumns(sb, list string) string {
 	pad := a.th.Bg.Render(" ")
 	sep := a.th.Border.Render(a.th.Box.V)
 	return padRow(sb, sidebarWidth-2, a.th.Bg) + pad + sep + pad + padRow(list, a.w-27, a.th.Bg)
-}
-
-func (a *App) statusLine() string {
-	if a.searching {
-		return padRow(a.th.Status.Render(" "+a.search.View()), a.w, a.th.Status)
-	}
-	style := a.th.Status
-	if a.statusErr {
-		style = a.th.StatusErr
-	}
-	info := a.lang.Tf("app.taskCount", a.list.Count())
-	if a.filter.Text != "" {
-		info += a.lang.Tf("app.searchInfo", a.filter.Text)
-	}
-	left := info
-	if a.status != "" {
-		left = " " + a.status + " ·" + info
-	}
-	// right-aligned: [@context ·] language · sort — widths measured on the
-	// plain strings before styling; the left side yields space when tight.
-	ctxSeg := ""
-	if a.activeCtx != "" {
-		ctxSeg = "@" + a.activeCtx + " · "
-	}
-	restSeg := langTag(a.lang) + " · " + a.lang.Tf("app.sort", a.lang.T("sort."+string(a.sortMode))) + " "
-	rightW := len([]rune(ctxSeg)) + len([]rune(restSeg))
-	avail := a.w - rightW
-	if avail < 0 {
-		avail = 0
-	}
-	left = truncRunes(left, avail)
-	gap := a.w - len([]rune(left)) - rightW
-	if gap < 0 {
-		gap = 0
-	}
-	return style.Render(left) + style.Render(strings.Repeat(" ", gap)) +
-		a.th.StatusAccent.Render(ctxSeg) + style.Render(restSeg)
 }
 
 // lipglossPlace centers a modal over the theme backdrop. Deliberately NOT

@@ -140,7 +140,7 @@ func TestMainFrameLayout(t *testing.T) {
 		"casa", "mercado", "trabalho",
 		"Comprar leite", "Revisar relatório", "Escrever testes",
 		"Completed", "Deleted",
-		"Help", "Quit", // fkey bar
+		"? help", "q quit", // hint line
 		"4 task(s)",
 	} {
 		if !strings.Contains(frame, want) {
