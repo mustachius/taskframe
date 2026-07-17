@@ -1,7 +1,10 @@
 name: CI
 
+# Scoped to branches: a tag push would re-run the suite for a commit that was
+# already tested when its branch push landed.
 on:
   push:
+    branches: ["**"]
   pull_request:
 
 # The workflow only reads the repo; never hand it the default write token.
