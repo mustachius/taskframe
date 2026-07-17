@@ -1,7 +1,7 @@
 name: vhs
 
-# Renders demo.tape into demo.gif on a Linux runner and commits the result
-# back to the repo.
+# Renders demo.tape and demo-classic.tape into their gifs on a Linux runner
+# and commits the results back to the repo.
 #
 # We install ffmpeg + ttyd + VHS ourselves instead of using
 # charmbracelet/vhs-action@v2: that action's bundled ffmpeg installer is broken.
@@ -13,6 +13,7 @@ on:
   push:
     paths:
       - demo.tape
+      - demo-classic.tape
       - .github/workflows/vhs.yml
   workflow_dispatch:
 
@@ -50,9 +51,11 @@ jobs:
         env:
           CI: ""
           COLORTERM: truecolor
-        run: vhs demo.tape
-      - name: Commit demo.gif
+        run: |
+          vhs demo.tape
+          vhs demo-classic.tape
+      - name: Commit demo gifs
         uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5
         with:
-          commit_message: "chore: regenerate demo.gif [skip ci]"
-          file_pattern: demo.gif
+          commit_message: "chore: regenerate demo gifs [skip ci]"
+          file_pattern: demo*.gif

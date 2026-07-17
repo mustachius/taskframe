@@ -112,14 +112,14 @@ reference.
 
 ### Classic TUI (`taskframe classic`)
 
-A full-screen interface in the spirit of the
-[lip gloss](https://github.com/charmbracelet/lipgloss) demo: report tabs
-across the top (**All**, **Today**, **Overdue**, **Week**, **Active**,
-**Next**, **Waiting**), an open sidebar with projects and contexts, a
-checklist-style task list, a chip status bar, and dialogs that float over the
-dimmed view. The TaskFrame logo sits pinned at the top (the full gradient
-wordmark on large terminals, a compact brand line on small ones), and every
-function key has a letter alias.
+A full-screen interface: report tabs across the top (**All**, **Today**,
+**Overdue**, **Week**, **Active**, **Next**, **Waiting**), an open sidebar
+with projects and contexts, a checklist-style task list, a chip status bar,
+and dialogs that float over the dimmed view. The TaskFrame logo sits pinned
+at the top (the full gradient wordmark on large terminals, a compact brand
+line on small ones), and every function key has a letter alias.
+
+![taskframe classic](demo-classic.gif)
 
 | Key | Action |
 |---|---|
@@ -199,7 +199,7 @@ your terminal shows through:
   the classic double-line borders)
 - **green** / **amber** — monochrome CRT phosphor
 - **dracula**, **catppuccin**, **nord**, **gruvbox**, **solarized**, **tokyonight** — popular truecolor palettes
-- **charm** — the pink/purple look of the lip gloss demo
+- **charm** — pink/purple, inspired by Charm's [lip gloss](https://github.com/charmbracelet/lipgloss) demo
 
 Resolution order: `--theme` flag > `TASKFRAME_THEME` > saved setting > config
 file > dark.
