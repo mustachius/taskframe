@@ -30,10 +30,13 @@ a pure-Go SQLite backend (no CGo), so it runs cleanly on Windows.
 
 ## Installation
 
-### Windows (recommended)
+Every path below builds from source and needs [Go](https://go.dev/dl/) 1.26 or
+newer (see `go.mod`); there are no prebuilt binaries yet.
 
-Run the installer to build and put `taskframe` on your user `PATH` (no admin
-required):
+### Windows
+
+Clone the repo and run the installer to build and put `taskframe` on your user
+`PATH` (no admin required):
 
 ```powershell
 .\install.ps1
@@ -42,14 +45,21 @@ required):
 It compiles to `%LOCALAPPDATA%\Programs\taskframe` and updates the user `PATH`.
 Open a new terminal and run `taskframe`.
 
-### From source
+### Linux / macOS
 
-Requires Go 1.26 or newer (see `go.mod`).
+```sh
+go install github.com/mustachius/taskframe/cmd/taskframe@latest
+```
+
+TaskFrame is developed on Windows, but there is no CGo and nothing
+Windows-only in it — the CI runs the test suite on Linux as well.
+
+### From source
 
 ```sh
 git clone https://github.com/mustachius/taskframe.git
 cd taskframe
-go build -o taskframe.exe ./cmd/taskframe
+go build -o taskframe ./cmd/taskframe    # taskframe.exe on Windows
 ```
 
 ## Quick start
@@ -274,6 +284,11 @@ The REPL and TUI are driven by [Bubble Tea](https://github.com/charmbracelet/bub
 and cannot be driven through a pipe (they read console events directly); the
 smoke tests in `internal/repl` and `internal/tui` exercise the models
 synchronously instead.
+
+## Contributing
+
+Issues and pull requests are welcome. Before sending code, run the checks
+above (test, vet, gofmt) — the CI runs them on Linux and Windows.
 
 ## License
 
