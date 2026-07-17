@@ -13,7 +13,7 @@ a pure-Go SQLite backend (no CGo), so it runs cleanly on Windows.
 ## Features
 
 - Three interfaces over the same database: an inline REPL (the default), a
-  quick-capture CLI, and a classic Norton Commander-style TUI.
+  quick-capture CLI, and a full-screen two-pane TUI with report tabs.
 - Projects form a dotted hierarchy (`work.api`); subtasks nest to any depth.
 - Tag filters (`+tag` / `-tag`), per-task notes, and free-text search.
 - Urgency sorting: a weighted Taskwarrior-style score over due date, priority,
@@ -25,8 +25,8 @@ a pure-Go SQLite backend (no CGo), so it runs cleanly on Windows.
 - JSON export/import for backups, and `taskframe sync` to carry the database
   between machines through a private git repo (last-writer-wins, with an
   automatic backup before every overwrite).
-- Ten themes and an English/Portuguese interface, both switchable at runtime
-  and persisted.
+- Eleven themes and an English/Portuguese interface, both switchable at
+  runtime and persisted.
 
 ## Installation
 
@@ -112,38 +112,45 @@ reference.
 
 ### Classic TUI (`taskframe classic`)
 
-A two-pane, full-screen interface: projects and filters on the left, tasks on
-the right, and the TaskFrame logo pinned at the top (the full gradient wordmark
-on large terminals, a compact brand line on small ones). Every function key has
-a letter alias.
+A full-screen interface in the spirit of the
+[lip gloss](https://github.com/charmbracelet/lipgloss) demo: report tabs
+across the top (**All**, **Today**, **Overdue**, **Week**, **Active**,
+**Next**, **Waiting**), an open sidebar with projects and contexts, a
+checklist-style task list, a chip status bar, and dialogs that float over the
+dimmed view. The TaskFrame logo sits pinned at the top (the full gradient
+wordmark on large terminals, a compact brand line on small ones), and every
+function key has a letter alias.
 
 | Key | Action |
 |---|---|
-| `Tab` | switch panels (projects / tasks) |
+| `[` `]` · `1`-`7` | previous/next report tab · jump to a tab |
+| `Tab` | switch columns (projects / tasks) |
 | `↑↓` / `jk`, `←→` / `hl` | move / collapse / expand subtasks |
 | `Enter`, `F3` | detail: notes + full history |
-| `F2` / `a` · `s` | new task · new subtask |
-| `F4` / `e` · `F5` / `n` | edit · add note |
-| `F6` / `m` | move (project / parent) |
-| `F9` / `d` / `Space` | complete / reopen |
+| `a`, `F2` · `s` | new task · new subtask |
+| `e`, `F4` · `n`, `F5` | edit · add note |
+| `m`, `F6` | move (project / parent) |
+| `d`, `Space`, `F9` | complete / reopen |
 | `S` | start / stop (mark in progress) |
-| `F8` / `x` | delete (with confirmation) |
-| `F7` / `/` | text search |
+| `x`, `F8` | delete (with confirmation) |
+| `/`, `F7` | text search |
 | `o` · `t` · `L` | sort · theme · language |
 | `u` · `U` | undo · redo |
-| `F10` / `q` | quit |
+| `q`, `F10` | quit |
 
 The mouse works too: the wheel scrolls the list, the sidebar and the
-detail/read views; a click selects the row under the pointer, and clicking the
-selected task again opens its detail. (While the TUI runs, select text with
-`Shift`+drag.) Started tasks show how long they have been in progress
-(`[>] … ·1h25m`) in every view.
+detail/read views; a click selects the row under the pointer (or switches
+tabs), and clicking the selected task again opens its detail. (While the TUI
+runs, select text with `Shift`+drag.) Started tasks carry a filled mark and
+show how long they have been in progress (`● … ·1h25m`) in every view; done
+tasks get a check and a strikethrough.
 
-The sidebar shows projects (each with a done/total progress bar), virtual
-filters (**Today**, **Overdue**, **Week**, **Active**, **Next**, **Waiting**),
-the tags in use, and your saved contexts — press `Enter` on a context row to
-activate it (again to clear); the active one is marked and applied to every
-view, like in the REPL and CLI.
+Tabs and the sidebar compose: pick the **Today** tab and the `casa` project
+and you see today's tasks in that project. The sidebar shows projects (each
+with a done/total progress bar), the tags in use, your saved contexts —
+`Enter` on a context row activates it (again to clear), and the active one is
+applied to every view, like in the REPL and CLI — plus the archive of
+completed and deleted tasks.
 
 ## Tokens and dates
 
@@ -182,15 +189,17 @@ both work regardless of the interface language).
 
 ## Themes
 
-Ten themes, switchable with `/theme` in the REPL or `t` in the classic TUI (or
-`/theme <name>`); the choice is saved. They restyle the text, the interface, and
-the markdown rendering, but never paint a line background, so your terminal
-shows through:
+Eleven themes, switchable with `/theme` in the REPL or `t` in the classic TUI
+(or `/theme <name>`); the choice is saved. They restyle the text, the
+interface, and the markdown rendering, but never paint a line background, so
+your terminal shows through:
 
 - **dark** (default) — subtle grays, adapts to light/dark terminals
-- **borland** — retro navy, Turbo Vision style
+- **borland** — retro navy, Turbo Vision style (and the one theme that keeps
+  the classic double-line borders)
 - **green** / **amber** — monochrome CRT phosphor
 - **dracula**, **catppuccin**, **nord**, **gruvbox**, **solarized**, **tokyonight** — popular truecolor palettes
+- **charm** — the pink/purple look of the lip gloss demo
 
 Resolution order: `--theme` flag > `TASKFRAME_THEME` > saved setting > config
 file > dark.

@@ -1,4 +1,5 @@
-// Package tui implements the Norton Commander-style terminal interface.
+// Package tui implements the full-screen "classic" interface: report tabs,
+// two open columns and floating dialogs, in the spirit of the lipgloss demo.
 package tui
 
 import (

@@ -16,20 +16,22 @@ func (hp *Help) Update(msg tea.Msg) (Modal, tea.Cmd) {
 }
 
 func (hp *Help) View(th Theme, w, h int) string {
+	// letters lead each combo: the F-keys still work but left the visual
 	rows := [][2]string{
 		{"Tab", hp.lang.T("tuihelp.tab.v")},
 		{"↑↓ / jk", hp.lang.T("tuihelp.move.v")},
 		{"←→ / hl", hp.lang.T("tuihelp.fold.v")},
+		{"[ ] · 1-7", hp.lang.T("tuihelp.tabs.v")},
 		{"Enter, F3", hp.lang.T("tuihelp.detail.v")},
 		{"R", hp.lang.T("tuihelp.read.v")},
-		{"F2, a", hp.lang.T("tuihelp.new.v")},
+		{"a, F2", hp.lang.T("tuihelp.new.v")},
 		{"s", hp.lang.T("tuihelp.newsub.v")},
-		{"F4, e", hp.lang.T("tuihelp.edit.v")},
-		{"F5, n", hp.lang.T("tuihelp.note.v")},
-		{"F6, m", hp.lang.T("tuihelp.movedlg.v")},
-		{"F9, d, Espaço", hp.lang.T("tuihelp.done.v")},
-		{"F8, x, Del", hp.lang.T("tuihelp.del.v")},
-		{"F7, /", hp.lang.T("tuihelp.search.v")},
+		{"e, F4", hp.lang.T("tuihelp.edit.v")},
+		{"n, F5", hp.lang.T("tuihelp.note.v")},
+		{"m, F6", hp.lang.T("tuihelp.movedlg.v")},
+		{"d, space, F9", hp.lang.T("tuihelp.done.v")},
+		{"x, Del, F8", hp.lang.T("tuihelp.del.v")},
+		{"/, F7", hp.lang.T("tuihelp.search.v")},
 		{"S", hp.lang.T("tuihelp.start.v")},
 		{"Enter (@ctx)", hp.lang.T("tuihelp.ctx.v")},
 		{"o", hp.lang.T("tuihelp.sort.v")},
@@ -38,7 +40,7 @@ func (hp *Help) View(th Theme, w, h int) string {
 		{"u", hp.lang.T("tuihelp.undo.v")},
 		{"U", hp.lang.T("tuihelp.redo.v")},
 		{"r", hp.lang.T("tuihelp.reload.v")},
-		{"F10, q", hp.lang.T("tuihelp.quit.v")},
+		{"q, F10", hp.lang.T("tuihelp.quit.v")},
 	}
 	var lines []string
 	lines = append(lines, "")
