@@ -174,7 +174,8 @@ var catalog = map[string][2]string{
 	"cli.help": {`taskframe — terminal task manager
 
 usage:
-  taskframe                     open the TUI
+  taskframe                     open the REPL
+  taskframe classic             open the full-screen TUI
   taskframe add <title> [tokens]
   taskframe list [tokens]
   taskframe done <ids>          ids: 1  1,5  1-3  (ranges and lists)
@@ -214,7 +215,8 @@ tokens (add and list):
 `, `taskframe — gerenciador de tarefas no terminal
 
 uso:
-  taskframe                     abre a TUI
+  taskframe                     abre o REPL
+  taskframe classic             abre a TUI de tela cheia
   taskframe add <título> [tokens]
   taskframe list [tokens]
   taskframe done <ids>          ids: 1  1,5  1-3  (ranges e listas)
