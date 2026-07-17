@@ -9,8 +9,12 @@ name: vhs
 # BtbN/FFmpeg-Builds release, which no longer ships n5.1 builds, so it always
 # fails with "Failed to install ffmpeg". VHS itself downloads its headless
 # Chromium (via go-rod) on first run, so we only need ffmpeg + ttyd on PATH.
+# branches is load-bearing: path filters do not apply to tag pushes, so a bare
+# `push` also fires on every tag — where the checkout is a detached HEAD and
+# the auto-commit step fails with exit 128.
 on:
   push:
+    branches: [main]
     paths:
       - demo.tape
       - demo-classic.tape
