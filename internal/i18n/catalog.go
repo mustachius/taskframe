@@ -393,16 +393,16 @@ tokens (add e list):
 	"panel.projects":  {"Projects", "Projetos"},
 
 	// --- TUI f-key bar ---
-	"fkey.help":   {"Help", "Ajuda"},
-	"fkey.add":    {"Add", "Add"},
-	"fkey.view":   {"View", "Ver"},
-	"fkey.edit":   {"Edit", "Edit"},
-	"fkey.note":   {"Note", "Nota"},
-	"fkey.move":   {"Move", "Mover"},
-	"fkey.search": {"Search", "Busca"},
-	"fkey.del":    {"Del", "Del"},
-	"fkey.done":   {"Done", "Done"},
-	"fkey.quit":   {"Quit", "Sair"},
+	"hint.list": {
+		"? help · a add · e edit · d done · S start · / search · [ ] tab · q quit",
+		"? ajuda · a nova · e editar · d concluir · S iniciar · / buscar · [ ] aba · q sair",
+	},
+	"hint.sidebar": {
+		"? help · ↑↓ move · enter open/toggle · tab list · q quit",
+		"? ajuda · ↑↓ move · enter abre/ativa · tab lista · q sair",
+	},
+	"hint.search": {"enter apply · esc cancel", "enter aplica · esc cancela"},
+	"hint.modal":  {"esc close", "esc fecha"},
 
 	// --- TUI help (F1) ---
 	"tuihelp.title":     {"Help", "Ajuda"},
