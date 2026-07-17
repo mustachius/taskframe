@@ -12,6 +12,7 @@ import (
 	"github.com/mustachius/taskframe/internal/i18n"
 	"github.com/mustachius/taskframe/internal/store"
 	"github.com/mustachius/taskframe/internal/task"
+	"github.com/mustachius/taskframe/internal/ui"
 )
 
 // Modal is a dialog that captures all input while open.
@@ -662,19 +663,30 @@ func (a *App) View() string {
 	tabs := strings.Join(a.renderTabBand(), "\n") + "\n"
 	contentH := a.contentHeight()
 
+	main := a.renderMain(contentH)
 	if a.modal != nil {
 		content := a.modal.View(a.th, a.w, contentH+1)
-		bg := lipglossPlace(a.th, content, a.w, contentH+1)
-		return hdr + tabs + bg + "\n" + a.frameTrailer()
+		main = overlayModal(a.th, main, content, a.w)
 	}
-
-	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, contentH, a.focus == focusSidebar)
-	listLines := a.list.Lines(a.th, a.lang, a.w-27, contentH, a.focus == focusList)
 
 	var b strings.Builder
 	b.WriteString(hdr)
 	b.WriteString(tabs)
-	b.WriteString(a.titleRow() + "\n")
+	for _, ln := range main {
+		b.WriteString(ln + "\n")
+	}
+	b.WriteString(a.frameTrailer())
+	return b.String()
+}
+
+// renderMain builds the live midsection — title row plus the two columns —
+// as exactly contentH+1 full-width lines. It is both the normal view and the
+// backdrop a modal dims over.
+func (a *App) renderMain(contentH int) []string {
+	sbLines := a.sidebar.Lines(a.th, sidebarWidth-2, contentH, a.focus == focusSidebar)
+	listLines := a.list.Lines(a.th, a.lang, a.w-27, contentH, a.focus == focusList)
+	out := make([]string, 0, contentH+1)
+	out = append(out, a.titleRow())
 	for i := 0; i < contentH; i++ {
 		sb, li := "", ""
 		if i < len(sbLines) {
@@ -683,10 +695,9 @@ func (a *App) View() string {
 		if i < len(listLines) {
 			li = listLines[i]
 		}
-		b.WriteString(a.joinColumns(sb, li) + "\n")
+		out = append(out, a.joinColumns(sb, li))
 	}
-	b.WriteString(a.frameTrailer())
-	return b.String()
+	return out
 }
 
 // frameTrailer is the last two frame rows: status chips + key hints.
@@ -730,12 +741,15 @@ func (a *App) joinColumns(sb, list string) string {
 	return padRow(sb, sidebarWidth-2, a.th.Bg) + pad + sep + pad + padRow(list, a.w-27, a.th.Bg)
 }
 
-// lipglossPlace centers a modal over the theme backdrop. Deliberately NOT
-// lipgloss.Place: the v1 Place returns oversized content unchanged (no
-// clipping), and tall modals (help at small sizes, the note prompt) rely on
-// being clipped to panelH so the frame keeps its exact height.
-func lipglossPlace(th Theme, content string, w, h int) string {
-	lines := strings.Split(content, "\n")
+// overlayModal centers the modal over the live main area: every backdrop
+// line is stripped to plain text and re-rendered dim, and the modal rows are
+// spliced in by rune position. Deliberately NOT lipgloss.Place: the v1 Place
+// returns oversized content unchanged (no clipping), and tall modals (help
+// at small sizes, the note prompt) rely on being clipped here so the frame
+// keeps its exact height. Splicing by rune index assumes 1-cell runes, the
+// same convention truncRunes lives by (double-width CJK text would drift).
+func overlayModal(th Theme, backdrop []string, modal string, w int) []string {
+	lines := strings.Split(modal, "\n")
 	ch := len(lines)
 	cw := 0
 	for _, l := range lines {
@@ -743,7 +757,7 @@ func lipglossPlace(th Theme, content string, w, h int) string {
 			cw = lw
 		}
 	}
-	top := (h - ch) / 2
+	top := (len(backdrop) - ch) / 2
 	if top < 0 {
 		top = 0
 	}
@@ -752,30 +766,22 @@ func lipglossPlace(th Theme, content string, w, h int) string {
 		left = 0
 	}
 
-	blank := th.Bg.Render(strings.Repeat(" ", w))
-	var b strings.Builder
-	row := 0
-	for ; row < top; row++ {
-		b.WriteString(blank + "\n")
-	}
-	pad := th.Bg.Render(strings.Repeat(" ", left))
-	for _, l := range lines {
-		if row >= h {
-			break
+	out := make([]string, 0, len(backdrop))
+	for row, bl := range backdrop {
+		plain := []rune(ui.StripANSI(bl))
+		for len(plain) < w {
+			plain = append(plain, ' ')
 		}
-		rest := w - left - visibleWidth(l)
+		i := row - top
+		if i < 0 || i >= ch {
+			out = append(out, th.Dim.Render(string(plain[:w])))
+			continue
+		}
+		rest := w - left - visibleWidth(lines[i])
 		if rest < 0 {
 			rest = 0
 		}
-		b.WriteString(pad + l + th.Bg.Render(strings.Repeat(" ", rest)) + "\n")
-		row++
+		out = append(out, th.Dim.Render(string(plain[:left]))+lines[i]+th.Dim.Render(string(plain[w-rest:w])))
 	}
-	for ; row < h; row++ {
-		b.WriteString(blank)
-		if row < h-1 {
-			b.WriteString("\n")
-		}
-	}
-	out := b.String()
-	return strings.TrimSuffix(out, "\n")
+	return out
 }
