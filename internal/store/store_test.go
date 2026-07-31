@@ -93,6 +93,58 @@ func TestCompleteAndUndo(t *testing.T) {
 	}
 }
 
+func TestListCompletedRange(t *testing.T) {
+	s := openTest(t)
+	backdate := func(id int64, when time.Time) {
+		t.Helper()
+		tk, err := s.GetTask(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tk.CompletedAt = &when
+		if err := s.UpdateTask(tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	thisMonth := &task.Task{Title: "done this month", Tags: []string{"trabalho"}}
+	lastMonth := &task.Task{Title: "done last month"}
+	pending := &task.Task{Title: "still pending"}
+	for _, tk := range []*task.Task{thisMonth, lastMonth, pending} {
+		if err := s.AddTask(tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []int64{thisMonth.ID, lastMonth.ID} {
+		if _, err := s.CompleteTask(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now()
+	backdate(thisMonth.ID, now.AddDate(0, 0, -1))
+	backdate(lastMonth.ID, now.AddDate(0, -1, -5))
+
+	from := now.AddDate(0, 0, -10)
+	f := task.Filter{Status: task.StatusDone, CompletedAfter: &from, CompletedBefore: &now}
+	list, err := s.List(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != thisMonth.ID {
+		t.Fatalf("expected only the recent completion, got %v", list)
+	}
+
+	// combines with tag filters
+	f.Tags = []string{"trabalho"}
+	if list, _ = s.List(f); len(list) != 1 {
+		t.Fatalf("expected 1 task with tag in range, got %d", len(list))
+	}
+	f.Tags = []string{"outra"}
+	if list, _ = s.List(f); len(list) != 0 {
+		t.Fatalf("expected 0 tasks with missing tag, got %d", len(list))
+	}
+}
+
 func TestDeleteAndPurge(t *testing.T) {
 	s := openTest(t)
 	tk := &task.Task{Title: "x"}

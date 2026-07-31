@@ -73,6 +73,45 @@ func ParseDate(s string, now time.Time) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("unrecognized date: %q", s)
 }
 
+// ParsePeriod resolves a period expression into an inclusive [from, to] range
+// in local time. Keywords name the calendar period containing now:
+//
+//	today/hoje, yesterday/ontem, week/semana (Monday-Sunday),
+//	month/mes/mês, year/ano
+//
+// Anything else goes through ParseDate and covers that single day.
+func ParsePeriod(s string, now time.Time) (from, to time.Time, err error) {
+	sod := func(t time.Time) time.Time {
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	}
+	eod := func(t time.Time) time.Time {
+		return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, t.Location())
+	}
+
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "today", "hoje":
+		return sod(now), eod(now), nil
+	case "yesterday", "ontem":
+		y := now.AddDate(0, 0, -1)
+		return sod(y), eod(y), nil
+	case "week", "semana":
+		monday := now.AddDate(0, 0, -((int(now.Weekday()) - int(time.Monday) + 7) % 7))
+		return sod(monday), eod(monday.AddDate(0, 0, 6)), nil
+	case "month", "mes", "mês":
+		first := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		return first, eod(first.AddDate(0, 1, -1)), nil
+	case "year", "ano":
+		return time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location()),
+			eod(time.Date(now.Year(), 12, 31, 0, 0, 0, 0, now.Location())), nil
+	}
+
+	d, perr := ParseDate(s, now)
+	if perr != nil {
+		return time.Time{}, time.Time{}, perr
+	}
+	return sod(d), eod(d), nil
+}
+
 var weekdays = map[string]time.Weekday{
 	"mon": time.Monday, "monday": time.Monday, "seg": time.Monday,
 	"tue": time.Tuesday, "tuesday": time.Tuesday, "ter": time.Tuesday,

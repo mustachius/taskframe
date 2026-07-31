@@ -176,11 +176,18 @@ Tokens are accepted by `add` and `list`:
 | `recur:daily\|weekly\|3d…` | recurrence |
 | `sub:<id>` | create as a subtask of `<id>` (add only) |
 | `status:pending\|done\|deleted\|all` | filter by status |
+| `end:<period>` | completed in the period (list only, implies `status:done`) |
 | `all` | include completed and deleted (list only) |
 
 Dates accept `today`, `tomorrow`, `3d`, `2w`, weekday names (`fri`, and
 Portuguese `sex`), `15/08`, `2026-08-15`, `eow` (end of week), and `eom` (end of
 month).
+
+`end:` takes a period instead of a single date: `today`, `yesterday`, `week`
+(Monday–Sunday), `month`, `year` (the calendar period containing today), or any
+date from the list above to mean that one day. So a monthly report of what you
+finished is `taskframe list end:month`, and it combines with the other tokens:
+`taskframe list end:month +work pro:home`.
 
 ## Language
 

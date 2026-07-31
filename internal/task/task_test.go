@@ -38,6 +38,41 @@ func TestParseDate(t *testing.T) {
 	}
 }
 
+func TestParsePeriod(t *testing.T) {
+	day := func(y int, m time.Month, d int) time.Time {
+		return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+	}
+	eod := func(y int, m time.Month, d int) time.Time {
+		return time.Date(y, m, d, 23, 59, 59, 0, time.Local)
+	}
+	cases := []struct {
+		in       string
+		from, to time.Time
+	}{
+		{"today", day(2026, 7, 12), eod(2026, 7, 12)},
+		{"yesterday", day(2026, 7, 11), eod(2026, 7, 11)},
+		{"week", day(2026, 7, 6), eod(2026, 7, 12)}, // base is a Sunday; week starts Monday
+		{"semana", day(2026, 7, 6), eod(2026, 7, 12)},
+		{"month", day(2026, 7, 1), eod(2026, 7, 31)},
+		{"mes", day(2026, 7, 1), eod(2026, 7, 31)},
+		{"year", day(2026, 1, 1), eod(2026, 12, 31)},
+		{"2026-07-03", day(2026, 7, 3), eod(2026, 7, 3)}, // explicit date = that single day
+	}
+	for _, c := range cases {
+		from, to, err := ParsePeriod(c.in, base)
+		if err != nil {
+			t.Errorf("%q: %v", c.in, err)
+			continue
+		}
+		if !from.Equal(c.from) || !to.Equal(c.to) {
+			t.Errorf("%q: got [%v, %v], want [%v, %v]", c.in, from, to, c.from, c.to)
+		}
+	}
+	if _, _, err := ParsePeriod("bogus", base); err == nil {
+		t.Error("expected error for bogus period")
+	}
+}
+
 func TestUrgencyOrdering(t *testing.T) {
 	now := base
 	overdue := now.AddDate(0, 0, -2)

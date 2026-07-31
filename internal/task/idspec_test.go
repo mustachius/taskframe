@@ -3,6 +3,7 @@ package task
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestParseIDSpec(t *testing.T) {
@@ -76,6 +77,41 @@ func TestParseTokensNegationAndStatus(t *testing.T) {
 
 	if _, _, _, err := ParseTokens([]string{"status:bogus"}, base); err == nil {
 		t.Fatal("expected error for invalid status")
+	}
+}
+
+func TestParseTokensEnd(t *testing.T) {
+	_, f, _, err := ParseTokens([]string{"end:month", "+casa"}, base)
+	if err != nil {
+		t.Fatalf("ParseTokens: %v", err)
+	}
+	if f.CompletedAfter == nil || f.CompletedBefore == nil {
+		t.Fatal("expected completed range to be set")
+	}
+	wantFrom := time.Date(2026, 7, 1, 0, 0, 0, 0, time.Local)
+	wantTo := time.Date(2026, 7, 31, 23, 59, 59, 0, time.Local)
+	if !f.CompletedAfter.Equal(wantFrom) || !f.CompletedBefore.Equal(wantTo) {
+		t.Fatalf("range = [%v, %v], want [%v, %v]", f.CompletedAfter, f.CompletedBefore, wantFrom, wantTo)
+	}
+	if f.Status != StatusDone {
+		t.Fatalf("end: should default status to done, got %q", f.Status)
+	}
+	if len(f.Tags) != 1 || f.Tags[0] != "casa" {
+		t.Fatalf("expected Tags=[casa], got %v", f.Tags)
+	}
+
+	// explicit status/all wins over the done default
+	_, f2, _, _ := ParseTokens([]string{"end:month", "status:all"}, base)
+	if !f2.IncludeAll || f2.Status != "" {
+		t.Fatalf("status:all should win over end: default, got IncludeAll=%v Status=%q", f2.IncludeAll, f2.Status)
+	}
+	_, f3, _, _ := ParseTokens([]string{"end:month", "status:deleted"}, base)
+	if f3.Status != StatusDeleted {
+		t.Fatalf("explicit status should win, got %q", f3.Status)
+	}
+
+	if _, _, _, err := ParseTokens([]string{"end:bogus"}, base); err == nil {
+		t.Fatal("expected error for invalid period")
 	}
 }
 

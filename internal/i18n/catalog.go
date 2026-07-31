@@ -154,7 +154,7 @@ var catalog = map[string][2]string{
 	"help.context.k":   {"context [name|none|list|define …]", "context [nome|none|list|define …]"},
 	"help.context.v":   {"saved default filter (nocontext ignores)", "filtro default salvo (nocontext ignora)"},
 	"help.filters.k":   {"filters", "filtros"},
-	"help.filters.v":   {"+tag -tag pro:x due:x prio:H status:done all", "+tag -tag pro:x due:x prio:H status:done all"},
+	"help.filters.v":   {"+tag -tag pro:x due:x prio:H status:done end:month all", "+tag -tag pro:x due:x prio:H status:done end:month all"},
 	"help.undoredo.k":  {"undo · redo", "undo · redo"},
 	"help.undoredo.v":  {"undo · redo the last operation", "desfaz · refaz a última operação"},
 	"help.theme.k":     {"/theme [name]", "/theme [nome]"},
@@ -210,6 +210,7 @@ tokens (add and list):
   recur:weekly    recurrence (daily, weekly, monthly, 3d...)
   sub:12          create as subtask of task 12 (add only)
   status:done     filter by status (pending, done, deleted, all)
+  end:month       completed in the period (today, week, month, year, a date; list only)
   all             include completed/deleted (list only)
   free text       in add becomes the title; in list becomes the search
 `, `taskframe — gerenciador de tarefas no terminal
@@ -251,6 +252,7 @@ tokens (add e list):
   recur:weekly    recorrência (daily, weekly, monthly, 3d...)
   sub:12          criar como subtarefa da tarefa 12 (só add)
   status:done     filtra por status (pending, done, deleted, all)
+  end:month       concluídas no período (today, week, month, year, uma data; só list)
   all             incluir concluídas/deletadas (só list)
   texto livre     no add vira título; no list vira busca
 `},

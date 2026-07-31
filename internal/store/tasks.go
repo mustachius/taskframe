@@ -385,6 +385,14 @@ func (s *Store) List(f task.Filter) ([]*task.Task, error) {
 		where = append(where, "t.due IS NOT NULL AND t.due <= ?")
 		args = append(args, fmtTime(*f.DueBefore))
 	}
+	if f.CompletedAfter != nil {
+		where = append(where, "t.completed_at IS NOT NULL AND t.completed_at >= ?")
+		args = append(args, fmtTime(*f.CompletedAfter))
+	}
+	if f.CompletedBefore != nil {
+		where = append(where, "t.completed_at IS NOT NULL AND t.completed_at <= ?")
+		args = append(args, fmtTime(*f.CompletedBefore))
+	}
 	if f.Text != "" {
 		where = append(where, `(t.title LIKE ? ESCAPE '\' OR EXISTS
 			(SELECT 1 FROM notes n WHERE n.task_id = t.id AND n.body LIKE ? ESCAPE '\'))`)

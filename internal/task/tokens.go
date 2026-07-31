@@ -10,7 +10,8 @@ import (
 
 // ParseTokens interprets taskwarrior-style arguments shared by the CLI and
 // the REPL: `+tag`, `-tag` (exclude, list only), `pro:x`, `due:x`, `prio:H`,
-// `wait:x`, `recur:x`, `sub:n`, `status:x`, and the `all` list modifier.
+// `wait:x`, `recur:x`, `sub:n`, `status:x`, `end:x` (completed in the period,
+// list only), and the `all` list modifier.
 // Non-token words are joined and returned as free text (title for add, search
 // text for list).
 func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text string, err error) {
@@ -62,6 +63,14 @@ func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text stri
 				return
 			}
 			t.ParentID = id
+		case strings.HasPrefix(a, "end:"):
+			from, to, perr := ParsePeriod(a[4:], now)
+			if perr != nil {
+				err = perr
+				return
+			}
+			filter.CompletedAfter = &from
+			filter.CompletedBefore = &to
 		case strings.HasPrefix(a, "status:"):
 			v := strings.ToLower(a[7:])
 			switch v {
@@ -80,6 +89,12 @@ func ParseTokens(args []string, now time.Time) (t Task, filter Filter, text stri
 		default:
 			words = append(words, a)
 		}
+	}
+	// end: only matches completed tasks, so default the status to done —
+	// otherwise `list end:month` would return nothing (default is pending).
+	// An explicit status:/all still wins.
+	if filter.CompletedAfter != nil && filter.Status == "" && !filter.IncludeAll {
+		filter.Status = StatusDone
 	}
 	text = strings.Join(words, " ")
 	return
